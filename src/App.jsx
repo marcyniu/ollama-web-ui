@@ -12,6 +12,10 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [streamingEnabled, setStreamingEnabled] = useState(() => {
+    const saved = localStorage.getItem('streamingEnabled');
+    return saved !== null ? saved === 'true' : true; // Default to true
+  });
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -52,6 +56,12 @@ function App() {
     setShowSettings(false);
   };
 
+  const toggleStreaming = () => {
+    const newValue = !streamingEnabled;
+    setStreamingEnabled(newValue);
+    localStorage.setItem('streamingEnabled', String(newValue));
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedModel || isStreaming) return;
 
@@ -75,37 +85,60 @@ function App() {
         body: JSON.stringify({
           model: selectedModel,
           prompt: inputMessage,
-          stream: true,
+          stream: streamingEnabled,
         }),
         signal: abortControllerRef.current.signal,
       });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      if (streamingEnabled) {
+        // Handle streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim());
 
-        for (const line of lines) {
-          try {
-            const json = JSON.parse(line);
-            if (json.response) {
-              setMessages(prev => {
-                const updated = [...prev];
-                const lastMessage = updated[updated.length - 1];
-                if (lastMessage.role === 'assistant') {
-                  lastMessage.content += json.response;
-                }
-                return updated;
-              });
+          for (const line of lines) {
+            try {
+              const json = JSON.parse(line);
+              if (json.response) {
+                setMessages(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  // Create a new message object instead of mutating
+                  if (updated[lastIndex].role === 'assistant') {
+                    updated[lastIndex] = {
+                      ...updated[lastIndex],
+                      content: updated[lastIndex].content + json.response
+                    };
+                  }
+                  return updated;
+                });
+              }
+            } catch (e) {
+              console.error('Error parsing JSON:', e);
             }
-          } catch (e) {
-            console.error('Error parsing JSON:', e);
           }
+        }
+      } else {
+        // Handle non-streaming response
+        const data = await response.json();
+        if (data.response) {
+          setMessages(prev => {
+            const updated = [...prev];
+            const lastIndex = updated.length - 1;
+            if (updated[lastIndex].role === 'assistant') {
+              updated[lastIndex] = {
+                ...updated[lastIndex],
+                content: data.response
+              };
+            }
+            return updated;
+          });
         }
       }
     } catch (error) {
@@ -113,9 +146,12 @@ function App() {
         console.error('Error streaming response:', error);
         setMessages(prev => {
           const updated = [...prev];
-          const lastMessage = updated[updated.length - 1];
-          if (lastMessage.role === 'assistant' && !lastMessage.content) {
-            lastMessage.content = 'Error: Failed to get response from Ollama server.';
+          const lastIndex = updated.length - 1;
+          if (updated[lastIndex].role === 'assistant' && !updated[lastIndex].content) {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content: 'Error: Failed to get response from Ollama server.'
+            };
           }
           return updated;
         });
@@ -282,6 +318,24 @@ function App() {
                 Stop Generation
               </button>
             )}
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm text-gray-700">Stream responses</span>
+                <button
+                  onClick={toggleStreaming}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    streamingEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                  disabled={isStreaming}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      streamingEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
           </div>
           <div className="flex gap-2">
             <textarea
