@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Ollama Web UI
 
 # Stage 1: Build the React application
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm config set strict-ssl false && npm install
 
 # Copy source files
 COPY . .
