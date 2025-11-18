@@ -18,7 +18,14 @@ function App() {
   });
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
-    return saved !== null ? saved === 'true' : false;
+    const isDark = saved !== null ? saved === 'true' : false;
+    // Apply dark mode immediately during initialization
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    return isDark;
   });
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -28,7 +35,7 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Apply dark mode to document
+  // Apply dark mode to document when it changes
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -265,7 +272,7 @@ function App() {
                 <button
                   onClick={toggleDarkMode}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    darkMode ? 'bg-blue-600' : 'bg-gray-300'
+                    darkMode ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
                 >
                   <span
