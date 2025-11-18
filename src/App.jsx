@@ -16,6 +16,17 @@ function App() {
     const saved = localStorage.getItem('streamingEnabled');
     return saved !== null ? saved === 'true' : true; // Default to true
   });
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    const isDark = saved !== null ? saved === 'true' : false;
+    // Apply dark mode immediately during initialization
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    return isDark;
+  });
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -23,6 +34,15 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Apply dark mode to document when it changes
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   const checkConnection = async () => {
     try {
@@ -60,6 +80,12 @@ function App() {
     const newValue = !streamingEnabled;
     setStreamingEnabled(newValue);
     localStorage.setItem('streamingEnabled', String(newValue));
+  };
+
+  const toggleDarkMode = () => {
+    const newValue = !darkMode;
+    setDarkMode(newValue);
+    localStorage.setItem('darkMode', String(newValue));
   };
 
   const handleSendMessage = async () => {
@@ -180,9 +206,9 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-blue-600 text-white p-4 shadow-lg">
+      <header className="bg-blue-600 dark:bg-blue-800 text-white p-4 shadow-lg">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Ollama Web UI</h1>
           <div className="flex items-center gap-4">
@@ -202,30 +228,30 @@ function App() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="bg-white border-b shadow-md p-4">
+        <div className="bg-white dark:bg-gray-800 border-b shadow-md p-4">
           <div className="max-w-6xl mx-auto">
-            <h2 className="text-xl font-semibold mb-4">Settings</h2>
+            <h2 className="text-xl font-semibold mb-4 dark:text-white">Settings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 dark:text-gray-300">
                   Ollama API Endpoint
                 </label>
                 <input
                   type="text"
                   value={apiEndpoint}
                   onChange={(e) => setApiEndpoint(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="http://localhost:11434"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 dark:text-gray-300">
                   Select Model
                 </label>
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={models.length === 0}
                 >
                   {models.length === 0 ? (
@@ -240,6 +266,23 @@ function App() {
                 </select>
               </div>
             </div>
+            <div className="mt-4 flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm font-medium dark:text-gray-300">Dark Mode</span>
+                <button
+                  onClick={toggleDarkMode}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    darkMode ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      darkMode ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={saveEndpoint}
@@ -249,7 +292,7 @@ function App() {
               </button>
               <button
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
+                className="px-4 py-2 bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition"
               >
                 Close
               </button>
@@ -262,7 +305,7 @@ function App() {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-gray-500 mt-20">
+            <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
               <h2 className="text-3xl font-bold mb-4">Welcome to Ollama Web UI</h2>
               <p className="text-lg">Select a model and start chatting!</p>
               <p className="text-sm mt-2">
@@ -279,7 +322,7 @@ function App() {
                 className={`max-w-3xl rounded-lg p-4 ${
                   message.role === 'user'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-900 shadow'
+                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
                 }`}
               >
                 <div className="font-semibold mb-1">
@@ -300,12 +343,12 @@ function App() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white border-t shadow-lg p-4">
+      <div className="bg-white dark:bg-gray-800 border-t shadow-lg p-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex gap-2 mb-2">
             <button
               onClick={clearChat}
-              className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
+              className="px-3 py-1 text-sm bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition"
               disabled={messages.length === 0}
             >
               Clear Chat
@@ -320,7 +363,7 @@ function App() {
             )}
             <div className="flex items-center gap-2 ml-auto">
               <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-sm text-gray-700">Stream responses</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Stream responses</span>
                 <button
                   onClick={toggleStreaming}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -343,7 +386,7 @@ function App() {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               rows="3"
               disabled={!selectedModel || isStreaming}
             />
