@@ -1,0 +1,49 @@
+name: Dependency Updater Agent
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install current dependencies
+        run: npm install
+
+      - name: Bump dependencies with npm-check-updates
+        run: npx npm-check-updates -u
+
+      - name: Install updated dependencies
+        run: npm install
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run build
+        run: npm run build
+
+      - name: Create dependency update PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'chore: weekly dependency refresh'
+          title: 'chore: automated dependency refresh'
+          body: |
+            ### 🤖 Automated updates
+            - npm-check-updates applied the latest compatible versions
+            - `npm run lint` and `npm run build` executed successfully
+          branch: chore/auto-dependency-refresh
+          delete-branch: true
+          reviewers: ${{ github.repository_owner }}

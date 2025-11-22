@@ -79,6 +79,29 @@ The Ollama API endpoint is stored in browser's localStorage and persists across 
 - react-markdown
 - Nginx (for Docker deployment)
 
+## GitHub Custom Agents
+
+Automation lives in `.github/workflows/` and keeps pull requests healthy:
+
+| Agent | Purpose |
+| --- | --- |
+| PR Triage (`pr-triage.yml`) | Labels PRs based on touched files, assigns default reviewers, and posts a readiness checklist. |
+| Automated Code Review (`code-review.yml`) | Summarizes diffs, surfaces large/risky changes, and nudges for screenshots/tests. |
+| Dependency & Security Auditor (`security-audit.yml`) | Runs `npm audit`, uploads reports, and blocks merges on high severity vulns. |
+| Dependency Updater (`dependency-updater.yml`) | Weekly `npm-check-updates` run that opens a PR after lint/build succeed. |
+| Test & Lint Gate (`test-lint.yml`) | Executes `npm run lint` and `npm run build` on pushes/PRs for a fast regression signal. |
+| Accessibility & Performance Auditor (`a11y-performance.yml`) | Builds the app, runs Lighthouse + pa11y, and comments core metrics plus top violations. |
+| Release Notes & Changelog (`release-notes.yml`) | Generates `CHANGELOG.md` entries and publishes GitHub releases from tags or manual triggers. |
+| Onboarding Linter (`onboarding-lint.yml`) | Checks `README.md` for required sections/snippets and uploads guidance for contributors. |
+| PR Title & Changelog Normalizer (`pr-title-normalizer.yml`) | Enforces semantic PR titles and suggests changelog bullets. |
+
+### Local agent helpers
+
+Two utility scripts mirror the CI behavior:
+
+- `npm run agents:onboarding` &rarr; runs the onboarding linter locally.
+- `npm run agents:changelog` &rarr; inserts a new section into `CHANGELOG.md` using the most recent commits (set `RELEASE_VERSION` to override the version tag).
+
 ## License
 
 MIT
