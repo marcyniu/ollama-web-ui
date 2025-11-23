@@ -45,7 +45,6 @@ jobs:
         uses: treosh/lighthouse-ci-action@v11
         continue-on-error: true
         with:
-          staticDistDir: dist
           uploadArtifacts: true
           runs: 1
           temporaryPublicStorage: true
