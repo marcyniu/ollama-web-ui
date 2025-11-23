@@ -1,0 +1,139 @@
+name: Accessibility & Performance Auditor
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - index.html
+      - package.json
+      - package-lock.json
+      - vite.config.js
+      - tailwind.config.js
+      - nginx.conf
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Serve production build
+        run: |
+          npx serve -s dist -l 4173 >/tmp/serve.log 2>&1 &
+          echo $! > serve.pid
+          sleep 5
+
+      - name: Lighthouse audit
+        id: lhci
+        uses: treosh/lighthouse-ci-action@v11
+        continue-on-error: true
+        with:
+          uploadArtifacts: true
+          runs: 1
+          temporaryPublicStorage: true
+          urls: 'http://127.0.0.1:4173'
+
+      - name: Accessibility audit (pa11y-ci)
+        id: pa11y
+        continue-on-error: true
+        env:
+          PORT: 4173
+        run: |
+          set -o pipefail
+          npx pa11y-ci --config .github/pa11yci.json --json | tee pa11y-report.json
+
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f serve.pid ]; then
+            kill $(cat serve.pid) || true
+          fi
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-performance-reports
+          path: |
+            .lighthouseci
+            pa11y-report.json
+
+      - name: Comment summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            let lighthouseSummary = 'Lighthouse report not available.';
+            const lhDir = path.join(process.cwd(), '.lighthouseci');
+            if (fs.existsSync(lhDir)) {
+              const files = fs.readdirSync(lhDir).filter((file) => file.endsWith('.json'));
+              if (files.length > 0) {
+                const report = JSON.parse(fs.readFileSync(path.join(lhDir, files[0]), 'utf8'));
+                lighthouseSummary = Object.values(report.categories)
+                  .map((category) => `- ${category.title}: ${Math.round(category.score * 100)} / 100`)
+                  .join('\n');
+              }
+            }
+
+            let pa11ySummary = 'pa11y-ci report not available.';
+            const pa11yPath = path.join(process.cwd(), 'pa11y-report.json');
+            if (fs.existsSync(pa11yPath)) {
+              try {
+                const pa11yPayload = JSON.parse(fs.readFileSync(pa11yPath, 'utf8'));
+                if (Array.isArray(pa11yPayload?.results) && pa11yPayload.results.length > 0) {
+                  const first = pa11yPayload.results[0];
+                  const violations = first.issues?.filter((issue) => issue.type === 'error') || [];
+                  const warnings = first.issues?.filter((issue) => issue.type !== 'error') || [];
+                  const topViolations = violations.slice(0, 5).map((issue) => `- ${issue.code}: ${issue.message} (${issue.selector})`);
+                  pa11ySummary = `Errors: ${violations.length}, Warnings: ${warnings.length}` + (topViolations.length ? `\nTop issues:\n${topViolations.join('\n')}` : '');
+                } else {
+                  pa11ySummary = 'No accessibility violations detected.';
+                }
+              } catch (error) {
+                pa11ySummary = `Unable to parse pa11y report: ${error.message}`;
+              }
+            }
+
+            const body = `<!-- a11y-performance-agent -->\n### ⚡ Accessibility & Performance\n**Lighthouse:**\n${lighthouseSummary}\n\n**Accessibility (pa11y):**\n${pa11ySummary}`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+            const previous = comments.find((comment) => comment.body?.includes('<!-- a11y-performance-agent -->'));
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Enforce accessibility baseline
+        if: steps.pa11y.outcome == 'failure'
+        run: |
+          echo 'pa11y-ci detected accessibility errors. Please review the report artifacts.'
+          exit 1

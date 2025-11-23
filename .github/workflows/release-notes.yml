@@ -1,0 +1,74 @@
+name: Release Notes & Changelog Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Version (e.g., v0.2.0)'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RELEASE_VERSION: ${{ github.event.inputs.release_version != '' && github.event.inputs.release_version || github.ref_name || 'Unreleased' }}
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Update changelog entry
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        run: npm run agents:changelog
+
+      - name: Show changelog snippet
+        run: |
+          echo "Generated changelog entry:" && cat changelog-report.md
+
+      - name: Capture snippet output
+        id: changelog_entry
+        run: |
+          {
+            echo 'entry<<EOF'
+            cat changelog-report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create changelog PR
+        if: always() && !startsWith(github.ref, 'refs/tags/')
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "docs: update changelog for ${{ env.RELEASE_VERSION }}"
+          title: "docs: changelog update for ${{ env.RELEASE_VERSION }}"
+          body: |
+            Automated changelog entry generated for `${{ env.RELEASE_VERSION }}`.
+
+            ```
+            ${{ steps.changelog_entry.outputs.entry }}
+            ```
+          branch: chore/auto-changelog-${{ env.RELEASE_VERSION || 'unreleased' }}
+          delete-branch: true
+          add-paths: |
+            CHANGELOG.md
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ env.RELEASE_VERSION }}
+          body_path: changelog-report.md
