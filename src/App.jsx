@@ -271,6 +271,7 @@ function App() {
                 <span className="text-sm font-medium dark:text-gray-300">Dark Mode</span>
                 <button
                   onClick={toggleDarkMode}
+                  aria-label="Toggle dark mode"
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                     darkMode ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
@@ -366,6 +367,7 @@ function App() {
                 <span className="text-sm text-gray-700 dark:text-gray-300">Stream responses</span>
                 <button
                   onClick={toggleStreaming}
+                  aria-label="Toggle streaming responses"
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                     streamingEnabled ? 'bg-blue-600' : 'bg-gray-300'
                   }`}
@@ -386,6 +388,7 @@ function App() {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+              aria-label="Chat message input"
               className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               rows="3"
               disabled={!selectedModel || isStreaming}
