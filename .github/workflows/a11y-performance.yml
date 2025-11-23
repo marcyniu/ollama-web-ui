@@ -34,6 +34,12 @@ jobs:
       - name: Build static site
         run: npm run build
 
+      - name: Serve production build
+        run: |
+          npx serve -s dist -l 4173 >/tmp/serve.log 2>&1 &
+          echo $! > serve.pid
+          sleep 5
+
       - name: Lighthouse audit
         id: lhci
         uses: treosh/lighthouse-ci-action@v11
@@ -43,11 +49,7 @@ jobs:
           uploadArtifacts: true
           runs: 1
           temporaryPublicStorage: true
-
-      - name: Serve production build
-        run: |
-          npx serve -s dist -l 4173 >/tmp/serve.log 2>&1 &
-          echo $! > serve.pid
+          urls: 'http://127.0.0.1:4173'
 
       - name: Accessibility audit (pa11y-ci)
         id: pa11y
