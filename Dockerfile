@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Ollama Web UI
 
 # Stage 1: Build the React application
-FROM node:20 AS builder
+FROM node:25 AS builder
 
 WORKDIR /app
 
