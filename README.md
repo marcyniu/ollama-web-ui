@@ -54,10 +54,15 @@ docker build -t ollama-web-ui .
 
 Run the container:
 ```bash
-docker run -d -p 80:80 ollama-web-ui
+docker run --rm -it \
+  --net dev-net \
+  --ip 172.18.0.46 \
+  --add-host docker-host:172.18.0.1 \
+  --name ollama-web-ui-dev \
+  ollama-web-ui
 ```
 
-Access the application at `http://localhost`
+Access the application at `http://localhost:11434`
 
 ## Usage
 
