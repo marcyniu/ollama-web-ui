@@ -102,6 +102,11 @@ Two utility scripts mirror the CI behavior:
 - `npm run agents:onboarding` &rarr; runs the onboarding linter locally.
 - `npm run agents:changelog` &rarr; inserts a new section into `CHANGELOG.md` using the most recent commits (set `RELEASE_VERSION` to override the version tag).
 
+### How to run GitHub Actions locally:
+```
+$ cd ~/code/node/ollama-web-ui
+$ act -W .github/workflows/test-lint.yml -j quality
+```
 ## License
 
 MIT
