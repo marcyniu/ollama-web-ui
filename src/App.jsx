@@ -423,8 +423,9 @@ function App() {
             
             {/* Model Selector */}
             <div className="flex items-center gap-2">
-              <label className="text-sm opacity-80">Model:</label>
+              <label htmlFor="model-select" className="text-sm opacity-80">Model:</label>
               <select
+                id="model-select"
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="px-3 py-1.5 bg-blue-700 dark:bg-blue-900 text-white rounded-lg border border-blue-500 dark:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
