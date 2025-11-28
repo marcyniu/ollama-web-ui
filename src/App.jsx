@@ -1,10 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus } from 'lucide-react';
 
 function App() {
+  // Endpoint management
+  const [endpoints, setEndpoints] = useState(() => {
+    const saved = localStorage.getItem('ollamaEndpoints');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return [
+      { id: '1', name: 'Local Ollama', url: 'http://localhost:11434', active: true }
+    ];
+  });
+  
   const [apiEndpoint, setApiEndpoint] = useState(() => {
-    return localStorage.getItem('ollamaEndpoint') || 'http://localhost:11434';
+    const saved = localStorage.getItem('ollamaEndpoints');
+    if (saved) {
+      const endpoints = JSON.parse(saved);
+      const activeEndpoint = endpoints.find(e => e.active);
+      return activeEndpoint ? activeEndpoint.url : 'http://localhost:11434';
+    }
+    return 'http://localhost:11434';
   });
   const [isConnected, setIsConnected] = useState(false);
   const [models, setModels] = useState([]);
@@ -33,6 +50,13 @@ function App() {
     }
     return isDark;
   });
+  
+  // Endpoint management modal states
+  const [showEndpointManager, setShowEndpointManager] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState(null);
+  const [endpointName, setEndpointName] = useState('');
+  const [endpointUrl, setEndpointUrl] = useState('');
+  
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -76,10 +100,89 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiEndpoint]);
 
-  const saveEndpoint = () => {
-    localStorage.setItem('ollamaEndpoint', apiEndpoint);
-    checkConnection();
-    setShowSettings(false);
+  // Endpoint CRUD operations
+  const addEndpoint = () => {
+    if (!endpointName.trim() || !endpointUrl.trim()) return;
+    
+    const newEndpoint = {
+      id: Date.now().toString(),
+      name: endpointName.trim(),
+      url: endpointUrl.trim(),
+      active: false
+    };
+    
+    const updatedEndpoints = [...endpoints, newEndpoint];
+    setEndpoints(updatedEndpoints);
+    localStorage.setItem('ollamaEndpoints', JSON.stringify(updatedEndpoints));
+    setEndpointName('');
+    setEndpointUrl('');
+  };
+  
+  const updateEndpoint = () => {
+    if (!editingEndpoint || !endpointName.trim() || !endpointUrl.trim()) return;
+    
+    const updatedEndpoints = endpoints.map(ep => 
+      ep.id === editingEndpoint.id 
+        ? { ...ep, name: endpointName.trim(), url: endpointUrl.trim() }
+        : ep
+    );
+    
+    setEndpoints(updatedEndpoints);
+    localStorage.setItem('ollamaEndpoints', JSON.stringify(updatedEndpoints));
+    
+    // Update active endpoint if editing the active one
+    if (editingEndpoint.active) {
+      setApiEndpoint(endpointUrl.trim());
+    }
+    
+    setEditingEndpoint(null);
+    setEndpointName('');
+    setEndpointUrl('');
+  };
+  
+  const deleteEndpoint = (id) => {
+    const endpointToDelete = endpoints.find(ep => ep.id === id);
+    if (endpoints.length === 1) {
+      alert('Cannot delete the last endpoint');
+      return;
+    }
+    
+    const updatedEndpoints = endpoints.filter(ep => ep.id !== id);
+    
+    // If deleting active endpoint, activate the first remaining one
+    if (endpointToDelete.active && updatedEndpoints.length > 0) {
+      updatedEndpoints[0].active = true;
+      setApiEndpoint(updatedEndpoints[0].url);
+    }
+    
+    setEndpoints(updatedEndpoints);
+    localStorage.setItem('ollamaEndpoints', JSON.stringify(updatedEndpoints));
+  };
+  
+  const selectEndpoint = (id) => {
+    const updatedEndpoints = endpoints.map(ep => ({
+      ...ep,
+      active: ep.id === id
+    }));
+    
+    const selectedEndpoint = updatedEndpoints.find(ep => ep.id === id);
+    if (selectedEndpoint) {
+      setApiEndpoint(selectedEndpoint.url);
+      setEndpoints(updatedEndpoints);
+      localStorage.setItem('ollamaEndpoints', JSON.stringify(updatedEndpoints));
+    }
+  };
+  
+  const startEditEndpoint = (endpoint) => {
+    setEditingEndpoint(endpoint);
+    setEndpointName(endpoint.name);
+    setEndpointUrl(endpoint.url);
+  };
+  
+  const cancelEditEndpoint = () => {
+    setEditingEndpoint(null);
+    setEndpointName('');
+    setEndpointUrl('');
   };
 
   const toggleStreaming = () => {
@@ -309,8 +412,37 @@ function App() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="bg-blue-600 dark:bg-blue-800 text-white p-4 shadow-lg">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
             <h1 className="text-2xl font-bold">Ollama Web UI</h1>
+            
+            {/* Current Endpoint Display */}
+            <div className="flex items-center gap-2 text-sm bg-blue-700 dark:bg-blue-900 px-3 py-1.5 rounded-lg">
+              <span className="opacity-80">Endpoint:</span>
+              <span className="font-semibold">{endpoints.find(e => e.active)?.name || 'Unknown'}</span>
+            </div>
+            
+            {/* Model Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm opacity-80">Model:</label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="px-3 py-1.5 bg-blue-700 dark:bg-blue-900 text-white rounded-lg border border-blue-500 dark:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                disabled={models.length === 0}
+              >
+                {models.length === 0 ? (
+                  <option>No models</option>
+                ) : (
+                  models.map((model) => (
+                    <option key={model.name} value={model.name}>
+                      {model.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            
+            {/* Connection Status */}
             <div className="flex items-center gap-2">
               <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
               <span className="text-sm">{isConnected ? 'Connected' : 'Disconnected'}</span>
@@ -335,39 +467,135 @@ function App() {
                 </div>
                 
                 <div className="space-y-6">
+                  {/* Endpoint Management */}
                   <div>
-                    <label className="block text-sm font-medium mb-2 dark:text-gray-300">
-                      Ollama API Endpoint
-                    </label>
-                    <input
-                      type="text"
-                      value={apiEndpoint}
-                      onChange={(e) => setApiEndpoint(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="http://localhost:11434"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-2 dark:text-gray-300">
-                      Select Model
-                    </label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      disabled={models.length === 0}
-                    >
-                      {models.length === 0 ? (
-                        <option>No models available</option>
-                      ) : (
-                        models.map((model) => (
-                          <option key={model.name} value={model.name}>
-                            {model.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="block text-sm font-medium dark:text-gray-300">
+                        Manage Endpoints
+                      </label>
+                      <button
+                        onClick={() => setShowEndpointManager(!showEndpointManager)}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Endpoint
+                      </button>
+                    </div>
+                    
+                    {/* Endpoint List */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {endpoints.map((endpoint) => (
+                        <div
+                          key={endpoint.id}
+                          className={`p-3 rounded-lg border ${
+                            endpoint.active
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-sm dark:text-white truncate">
+                                  {endpoint.name}
+                                </h4>
+                                {endpoint.active && (
+                                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1">
+                                {endpoint.url}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {!endpoint.active && (
+                                <button
+                                  onClick={() => selectEndpoint(endpoint.id)}
+                                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
+                                  title="Set as active"
+                                >
+                                  Use
+                                </button>
+                              )}
+                              <button
+                                onClick={() => startEditEndpoint(endpoint)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition"
+                                title="Edit endpoint"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteEndpoint(endpoint.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition"
+                                disabled={endpoints.length === 1}
+                                title="Delete endpoint"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Add/Edit Endpoint Form */}
+                    {(showEndpointManager || editingEndpoint) && (
+                      <div className="mt-4 p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                        <h4 className="font-semibold mb-3 dark:text-white">
+                          {editingEndpoint ? 'Edit Endpoint' : 'Add New Endpoint'}
+                        </h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1 dark:text-gray-300">
+                              Endpoint Name
+                            </label>
+                            <input
+                              type="text"
+                              value={endpointName}
+                              onChange={(e) => setEndpointName(e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="e.g., Local Ollama"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1 dark:text-gray-300">
+                              Endpoint URL
+                            </label>
+                            <input
+                              type="text"
+                              value={endpointUrl}
+                              onChange={(e) => setEndpointUrl(e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="http://localhost:11434"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={editingEndpoint ? updateEndpoint : addEndpoint}
+                              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                            >
+                              {editingEndpoint ? 'Update' : 'Add'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (editingEndpoint) {
+                                  cancelEditEndpoint();
+                                } else {
+                                  setShowEndpointManager(false);
+                                  setEndpointName('');
+                                  setEndpointUrl('');
+                                }
+                              }}
+                              className="px-3 py-1.5 text-sm bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-2">
@@ -391,16 +619,10 @@ function App() {
                   
                   <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <button
-                      onClick={saveEndpoint}
+                      onClick={() => setShowSettings(false)}
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                     >
-                      Save & Test Connection
-                    </button>
-                    <button
-                      onClick={() => setShowSettings(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition"
-                    >
-                      Cancel
+                      Close
                     </button>
                   </div>
                 </div>
