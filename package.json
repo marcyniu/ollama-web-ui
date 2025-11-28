@@ -12,6 +12,7 @@
     "agents:changelog": "node scripts/agents/update-changelog.mjs"
   },
   "dependencies": {
+    "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0"
