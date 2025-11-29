@@ -462,7 +462,7 @@ function App() {
                 </h3>
               </div>
               
-              <div className="space-y-1 max-h-[calc(100vh-300px)] overflow-y-auto">
+              <div className="space-y-1 max-h-[calc(100vh-300px)] overflow-y-auto chat-history-scrollbar">
                 {chatHistory.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
                     No chat history
