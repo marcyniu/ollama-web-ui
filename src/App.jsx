@@ -162,24 +162,41 @@ function App() {
       const response = await fetch(`${apiEndpoint}/api/tags`);
       if (response.ok) {
         const data = await response.json();
-        setModels(data.models || []);
+        // Sort models alphabetically by name
+        const sortedModels = (data.models || []).sort((a, b) => 
+          a.name.localeCompare(b.name)
+        );
+        setModels(sortedModels);
         setIsConnected(true);
-        if (data.models && data.models.length > 0 && !selectedModel) {
-          setSelectedModel(data.models[0].name);
+        // Auto-select first model if models are available
+        if (sortedModels.length > 0) {
+          setSelectedModel(sortedModels[0].name);
         }
       } else {
         setIsConnected(false);
         setModels([]);
+        setSelectedModel('');
       }
     } catch {
       setIsConnected(false);
       setModels([]);
+      setSelectedModel('');
     }
   };
 
   // Load models when endpoint changes
   useEffect(() => {
-    checkConnection();
+    // Clear current selection and reconnect when endpoint changes
+    setSelectedModel('');
+    setIsConnected(false);
+    setModels([]);
+    
+    // Small delay to ensure state is cleared before reconnecting
+    const timer = setTimeout(() => {
+      checkConnection();
+    }, 100);
+    
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiEndpoint]);
 
