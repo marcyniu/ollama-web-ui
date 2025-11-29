@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus } from 'lucide-react';
 
@@ -51,6 +51,13 @@ function App() {
     return isDark;
   });
   
+  // Chat history management
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = localStorage.getItem('chatHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currentChatId, setCurrentChatId] = useState(null);
+  
   // Endpoint management modal states
   const [showEndpointManager, setShowEndpointManager] = useState(false);
   const [editingEndpoint, setEditingEndpoint] = useState(null);
@@ -74,29 +81,122 @@ function App() {
     }
   }, [darkMode]);
 
+  // Save chat history to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  // Prune old chats on mount and when starting new chat
+  useEffect(() => {
+    pruneOldChats();
+  }, []);
+
+  const pruneOldChats = () => {
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    setChatHistory(prev => {
+      const filtered = prev.filter(chat => chat.timestamp > thirtyDaysAgo);
+      return filtered;
+    });
+  };
+
+  const saveCurrentChat = useCallback(() => {
+    if (messages.length === 0) return;
+
+    const firstUserMessage = messages.find(msg => msg.role === 'user');
+    if (!firstUserMessage) return;
+
+    const title = firstUserMessage.content.length > 200 
+      ? firstUserMessage.content.substring(0, 200) + '...'
+      : firstUserMessage.content;
+
+    setChatHistory(prev => {
+      const existingIndex = prev.findIndex(chat => chat.id === currentChatId);
+      const chatData = {
+        id: currentChatId || Date.now().toString(),
+        title,
+        messages: [...messages],
+        timestamp: existingIndex >= 0 ? prev[existingIndex].timestamp : Date.now(),
+        lastUpdated: Date.now()
+      };
+
+      if (!currentChatId) {
+        setCurrentChatId(chatData.id);
+      }
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = chatData;
+        return updated;
+      } else {
+        return [chatData, ...prev];
+      }
+    });
+  }, [messages, currentChatId]);
+
+  // Save current chat whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveCurrentChat();
+    }
+  }, [messages, saveCurrentChat]);
+
+  const loadChatFromHistory = (chatId) => {
+    const chat = chatHistory.find(c => c.id === chatId);
+    if (chat) {
+      setMessages(chat.messages);
+      setCurrentChatId(chat.id);
+      setActiveView('chat');
+    }
+  };
+
+  const deleteChatFromHistory = (chatId) => {
+    setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
+    if (currentChatId === chatId) {
+      setMessages([]);
+      setCurrentChatId(null);
+    }
+  };
+
   const checkConnection = async () => {
     try {
       const response = await fetch(`${apiEndpoint}/api/tags`);
       if (response.ok) {
         const data = await response.json();
-        setModels(data.models || []);
+        // Sort models alphabetically by name
+        const sortedModels = (data.models || []).sort((a, b) => 
+          a.name.localeCompare(b.name)
+        );
+        setModels(sortedModels);
         setIsConnected(true);
-        if (data.models && data.models.length > 0 && !selectedModel) {
-          setSelectedModel(data.models[0].name);
+        // Auto-select first model if models are available
+        if (sortedModels.length > 0) {
+          setSelectedModel(sortedModels[0].name);
         }
       } else {
         setIsConnected(false);
         setModels([]);
+        setSelectedModel('');
       }
     } catch {
       setIsConnected(false);
       setModels([]);
+      setSelectedModel('');
     }
   };
 
   // Load models when endpoint changes
   useEffect(() => {
-    checkConnection();
+    // Clear current selection and reconnect when endpoint changes
+    setSelectedModel('');
+    setIsConnected(false);
+    setModels([]);
+    
+    // Small delay to ensure state is cleared before reconnecting
+    const timer = setTimeout(() => {
+      checkConnection();
+    }, 100);
+    
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiEndpoint]);
 
@@ -204,7 +304,9 @@ function App() {
   };
 
   const handleNewChat = () => {
+    pruneOldChats();
     setMessages([]);
+    setCurrentChatId(null);
     setActiveView('chat');
   };
 
@@ -352,7 +454,7 @@ function App() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className={`flex-1 p-2 space-y-1 ${menuCollapsed ? '' : 'overflow-y-auto'}`}>
           <button
             onClick={handleNewChat}
             className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative"
@@ -369,23 +471,66 @@ function App() {
             )}
           </button>
 
-          <button
-            onClick={() => setActiveView('history')}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
-              activeView === 'history' ? 'bg-blue-50 dark:bg-gray-700' : ''
-            }`}
-            title={menuCollapsed ? 'Chat History' : ''}
-          >
-            <History className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            {!menuCollapsed && (
-              <span className="text-gray-700 dark:text-gray-200 font-medium">Chat History</span>
-            )}
-            {menuCollapsed && (
+          {!menuCollapsed && (
+            <>
+              <div className="pt-4 pb-2">
+                <h3 className="px-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Chat History
+                </h3>
+              </div>
+              
+              <div className="space-y-1 max-h-[calc(100vh-300px)] overflow-y-auto chat-history-scrollbar">
+                {chatHistory.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                    No chat history
+                  </div>
+                ) : (
+                  chatHistory.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors ${
+                        currentChatId === chat.id ? 'bg-blue-50 dark:bg-gray-700' : ''
+                      }`}
+                    >
+                      <button
+                        onClick={() => loadChatFromHistory(chat.id)}
+                        className="flex-1 text-left text-sm text-gray-700 dark:text-gray-200 truncate"
+                        title={chat.title}
+                      >
+                        {chat.title}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChatFromHistory(chat.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-opacity"
+                        title="Delete chat"
+                        aria-label="Delete chat"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {menuCollapsed && (
+            <button
+              onClick={() => setActiveView('history')}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
+                activeView === 'history' ? 'bg-blue-50 dark:bg-gray-700' : ''
+              }`}
+              title="Chat History"
+            >
+              <History className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
                 Chat History
               </div>
-            )}
-          </button>
+            </button>
+          )}
         </nav>
 
         {/* Settings at Bottom */}
@@ -741,12 +886,62 @@ function App() {
           /* Chat History View */
           <div className="flex-1 overflow-y-auto p-4">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">Chat History</h2>
-              <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
-                <History className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No chat history available yet</p>
-                <p className="text-sm mt-2">Your conversation history will appear here</p>
-              </div>
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Chat History</h2>
+              {chatHistory.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 mt-20">
+                  <History className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">No chat history available yet</p>
+                  <p className="text-sm mt-2">Your conversation history will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {chatHistory.map((chat) => {
+                    const date = new Date(chat.timestamp);
+                    const formattedDate = date.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+
+                    return (
+                      <div
+                        key={chat.id}
+                        className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <button
+                            onClick={() => loadChatFromHistory(chat.id)}
+                            className="flex-1 text-left"
+                          >
+                            <h3 className="font-medium text-gray-900 dark:text-white mb-1 line-clamp-2">
+                              {chat.title}
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                              <span>{formattedDate}</span>
+                              <span>•</span>
+                              <span>{chat.messages.length} messages</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this chat?')) {
+                                deleteChatFromHistory(chat.id);
+                              }
+                            }}
+                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Delete chat"
+                            aria-label="Delete chat"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
