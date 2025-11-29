@@ -437,7 +437,7 @@ function App() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        <nav className={`flex-1 p-2 space-y-1 ${menuCollapsed ? '' : 'overflow-y-auto'}`}>
           <button
             onClick={handleNewChat}
             className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative"
