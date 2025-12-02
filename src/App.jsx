@@ -325,14 +325,22 @@ function App() {
     try {
       abortControllerRef.current = new AbortController();
       
-      const response = await fetch(`${apiEndpoint}/api/generate`, {
+      // Build the messages array for the API - include conversation history
+      const apiMessages = messages
+        .concat([userMessage])
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+      
+      const response = await fetch(`${apiEndpoint}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           model: selectedModel,
-          prompt: inputMessage,
+          messages: apiMessages,
           stream: streamingEnabled,
         }),
         signal: abortControllerRef.current.signal,
@@ -353,15 +361,15 @@ function App() {
           for (const line of lines) {
             try {
               const json = JSON.parse(line);
-              if (json.response) {
+              // /api/chat uses 'message.content' instead of 'response'
+              if (json.message?.content) {
                 setMessages(prev => {
                   const updated = [...prev];
                   const lastIndex = updated.length - 1;
-                  // Create a new message object instead of mutating
                   if (updated[lastIndex].role === 'assistant') {
                     updated[lastIndex] = {
                       ...updated[lastIndex],
-                      content: updated[lastIndex].content + json.response
+                      content: updated[lastIndex].content + json.message.content
                     };
                   }
                   return updated;
@@ -375,14 +383,15 @@ function App() {
       } else {
         // Handle non-streaming response
         const data = await response.json();
-        if (data.response) {
+        // /api/chat returns message object with content
+        if (data.message?.content) {
           setMessages(prev => {
             const updated = [...prev];
             const lastIndex = updated.length - 1;
             if (updated[lastIndex].role === 'assistant') {
               updated[lastIndex] = {
                 ...updated[lastIndex],
-                content: data.response
+                content: data.message.content
               };
             }
             return updated;
