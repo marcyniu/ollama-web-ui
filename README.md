@@ -82,7 +82,6 @@ Run the container permanently in the background:
 docker run -d \
   --net dev-net \
   --restart=always \
-  --ip 172.18.0.46 \
   --name ollama-web \
   ollama-web-ui
 ```
