@@ -47,6 +47,19 @@ npm run preview
 
 ## Docker Deployment
 
+Create network (if it does not exist)
+```bash
+docker network create --driver bridge \
+        --ip-range 172.18.0.0/16 \
+        --subnet 172.18.0.0/16 dev-net
+```
+
+Add local domain to /etc/hosts (requires sudo).
+Run this with a root shell or use tee to append as root:
+```bash
+echo "172.18.0.46 {your_local_domain}" | sudo tee -a /etc/hosts
+```
+
 Build the Docker image:
 ```bash
 docker build -t ollama-web-ui .
@@ -62,7 +75,59 @@ docker run --rm -it \
   ollama-web-ui
 ```
 
-Access the application at `http://localhost:11434`
+## Set up environment for permanent run with Nginx reverse proxy:
+
+Run the container permanently in the background:
+```bash
+docker run -d \
+  --net dev-net \
+  --restart=always \
+  --name ollama-web \
+  ollama-web-ui
+```
+
+Example configuration for Nginx reverse proxy (`/etc/nginx/conf.d/ollama-web.conf`):
+```nginx
+# Server Block for {application_subdomain_1}
+server {
+    listen 80;
+    server_name {application_subdomain_1};
+
+    location / {
+        # Use the Docker container name as the upstream target
+        proxy_pass http://ollama-web:80; # Assuming app1 runs on port 80
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # ... other proxy headers
+    }
+}
+
+# Server Block for {application_subdomain_2}
+server {
+    listen 80;
+    server_name {application_subdomain_2};
+
+    location / {
+        # Use the Docker container name as the upstream target
+        proxy_pass http://test-web:80; # Assuming app2 runs on port 80
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # ... other proxy headers
+    }
+}
+```
+
+Run the container permanently in the background:
+```bash
+docker run -d \
+  --name nginx-proxy \
+  --net dev-net \
+  --restart=always \
+  -p 80:80 \
+  -p 443:443 \
+  -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
+  nginx
+```
 
 ## Usage
 
