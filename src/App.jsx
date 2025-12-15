@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image } from 'lucide-react';
+import packageJson from '../package.json';
 
 function App() {
   // Endpoint management
@@ -26,9 +27,12 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const [selectedModelSupportsVision, setSelectedModelSupportsVision] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [menuCollapsed, setMenuCollapsed] = useState(() => {
     const saved = localStorage.getItem('menuCollapsed');
@@ -66,6 +70,18 @@ function App() {
   
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Helper function to detect vision-capable models
+  const isVisionModel = (modelName) => {
+    if (!modelName) return false;
+    const lowerName = modelName.toLowerCase();
+    return lowerName.includes('llava') || 
+           lowerName.includes('bakllava') || 
+           lowerName.includes('vision') || 
+           lowerName.includes('minicpm-v') ||  
+           lowerName.includes('moondream');
+  };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -170,7 +186,9 @@ function App() {
         setIsConnected(true);
         // Auto-select first model if models are available
         if (sortedModels.length > 0) {
-          setSelectedModel(sortedModels[0].name);
+          const firstModel = sortedModels[0].name;
+          setSelectedModel(firstModel);
+          setSelectedModelSupportsVision(isVisionModel(firstModel));
         }
       } else {
         setIsConnected(false);
@@ -183,6 +201,14 @@ function App() {
       setSelectedModel('');
     }
   };
+
+  // Update vision capability when model changes
+  useEffect(() => {
+    setSelectedModelSupportsVision(isVisionModel(selectedModel));
+    // Clear image when switching models
+    setSelectedImage(null);
+    setImagePreview(null);
+  }, [selectedModel]);
 
   // Load models when endpoint changes
   useEffect(() => {
@@ -308,12 +334,37 @@ function App() {
     setMessages([]);
     setCurrentChatId(null);
     setActiveView('chat');
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedModel || isStreaming) return;
 
     const userMessage = { role: 'user', content: inputMessage };
+    if (selectedImage) {
+      userMessage.image = imagePreview;
+    }
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsStreaming(true);
@@ -328,10 +379,19 @@ function App() {
       // Build the messages array for the API - include conversation history
       const apiMessages = messages
         .concat([userMessage])
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
+        .map(msg => {
+          const apiMsg = {
+            role: msg.role,
+            content: msg.content
+          };
+          // Add images for vision models if present
+          if (msg.image && selectedModelSupportsVision) {
+            // Extract base64 data from data URL
+            const base64Data = msg.image.split(',')[1];
+            apiMsg.images = [base64Data];
+          }
+          return apiMsg;
+        });
       
       const response = await fetch(`${apiEndpoint}/api/chat`, {
         method: 'POST',
@@ -398,6 +458,8 @@ function App() {
           });
         }
       }
+      // Clear image after successful send
+      clearImage();
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('Error streaming response:', error);
@@ -567,7 +629,12 @@ function App() {
         {/* Header */}
         <header className="bg-blue-600 dark:bg-blue-800 text-white p-4 shadow-lg">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-bold">Ollama Web UI</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">Ollama Web UI</h1>
+              <span className="px-2 py-0.5 text-xs font-semibold bg-blue-500 dark:bg-blue-700 rounded-full">
+                v{packageJson.version}
+              </span>
+            </div>
             
             {/* Current Endpoint Display */}
             <div className="flex items-center gap-2 text-sm bg-blue-700 dark:bg-blue-900 px-3 py-1.5 rounded-lg">
@@ -779,6 +846,9 @@ function App() {
                     >
                       Close
                     </button>
+                    <div className="flex-1 flex items-center justify-end text-xs text-gray-500 dark:text-gray-400">
+                      Version {packageJson.version}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -816,6 +886,15 @@ function App() {
                       <div className="font-semibold mb-1">
                         {message.role === 'user' ? 'You' : 'Assistant'}
                       </div>
+                      {message.image && (
+                        <div className="mb-2">
+                          <img 
+                            src={message.image} 
+                            alt="Uploaded content" 
+                            className="max-w-xs rounded-lg"
+                          />
+                        </div>
+                      )}
                       <div className="prose prose-sm max-w-none">
                         {message.role === 'assistant' ? (
                           <ReactMarkdown>{message.content || '...'}</ReactMarkdown>
@@ -869,21 +948,67 @@ function App() {
                     </label>
                   </div>
                 </div>
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="mb-2 relative inline-block">
+                    <img 
+                      src={imagePreview} 
+                      alt="Selected" 
+                      className="max-h-32 rounded-lg border-2 border-blue-500"
+                    />
+                    <button
+                      onClick={clearImage}
+                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition"
+                      aria-label="Remove image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <textarea
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-                    aria-label="Chat message input"
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    rows="3"
-                    disabled={!selectedModel || isStreaming}
-                  />
+                  <div className="flex-1 flex flex-col gap-2">
+                    <textarea
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={selectedModelSupportsVision ? "Type your message... (You can attach an image)" : "Type your message... (Press Enter to send, Shift+Enter for new line)"}
+                      aria-label="Chat message input"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows="3"
+                      disabled={!selectedModel || isStreaming}
+                    />
+                    {/* Image Upload Button - Only shown for vision models */}
+                    {selectedModelSupportsVision && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                          className="hidden"
+                          disabled={isStreaming}
+                        />
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isStreaming}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Attach image"
+                        >
+                          <Image className="w-4 h-4" />
+                          {selectedImage ? 'Change Image' : 'Attach Image'}
+                        </button>
+                        {selectedImage && (
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {selectedImage.name}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim() || !selectedModel || isStreaming}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed h-fit"
                   >
                     {isStreaming ? 'Sending...' : 'Send'}
                   </button>
