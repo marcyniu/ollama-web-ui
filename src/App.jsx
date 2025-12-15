@@ -76,14 +76,15 @@ function App() {
   const isVisionModel = (modelName) => {
     if (!modelName) return false;
     const lowerName = modelName.toLowerCase();
+    // Check for known vision-capable model families and patterns
     return lowerName.includes('llava') || 
            lowerName.includes('bakllava') || 
            lowerName.includes('vision') || 
            lowerName.includes('minicpm-v') ||  
            lowerName.includes('moondream') ||
-           lowerName.includes('gemma3') ||
            lowerName.includes('cogvlm') ||
-           lowerName.includes('llama3.2-vision');
+           // Support for gemma3 vision models (custom or future releases)
+           lowerName.startsWith('gemma3');
   };
 
   // Auto-scroll to bottom when messages change
