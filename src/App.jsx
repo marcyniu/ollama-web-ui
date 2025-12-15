@@ -80,7 +80,10 @@ function App() {
            lowerName.includes('bakllava') || 
            lowerName.includes('vision') || 
            lowerName.includes('minicpm-v') ||  
-           lowerName.includes('moondream');
+           lowerName.includes('moondream') ||
+           lowerName.includes('gemma3') ||
+           lowerName.includes('cogvlm') ||
+           lowerName.includes('llama3.2-vision');
   };
 
   // Auto-scroll to bottom when messages change
