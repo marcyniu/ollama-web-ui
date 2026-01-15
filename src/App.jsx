@@ -11,29 +11,40 @@ function MessageContent({ content, role }) {
     return <p className="whitespace-pre-wrap">{content}</p>;
   }
   
-  const { thinking, response } = parseThinkingContent(content);
+  const { thinking, response, isThinkingInProgress } = parseThinkingContent(content);
   
   return (
     <>
-      {thinking && (
+      {(thinking || isThinkingInProgress) && (
         <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-600">
           <div className="flex items-center gap-2 mb-1">
             <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
               THINKING
             </div>
-            <button
-              onClick={() => setIsThinkingCollapsed(!isThinkingCollapsed)}
-              className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              aria-label={isThinkingCollapsed ? "Expand thinking" : "Collapse thinking"}
-            >
-              {isThinkingCollapsed ? (
-                <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
-              ) : (
-                <ChevronUp className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
-              )}
-            </button>
+            {thinking && (
+              <button
+                onClick={() => setIsThinkingCollapsed(!isThinkingCollapsed)}
+                className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                aria-label={isThinkingCollapsed ? "Expand thinking" : "Collapse thinking"}
+              >
+                {isThinkingCollapsed ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                ) : (
+                  <ChevronUp className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                )}
+              </button>
+            )}
           </div>
-          {!isThinkingCollapsed && (
+          {isThinkingInProgress && !thinking && (
+            <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></span>
+              </span>
+            </div>
+          )}
+          {thinking && !isThinkingCollapsed && (
             <div className="text-sm italic text-gray-600 dark:text-gray-400">
               <ReactMarkdown>{thinking}</ReactMarkdown>
             </div>
@@ -42,10 +53,10 @@ function MessageContent({ content, role }) {
       )}
       {response && (
         <div className="prose prose-sm max-w-none">
-          <ReactMarkdown>{response || '...'}</ReactMarkdown>
+          <ReactMarkdown>{response}</ReactMarkdown>
         </div>
       )}
-      {!response && !thinking && (
+      {!response && !thinking && !isThinkingInProgress && (
         <div className="prose prose-sm max-w-none">
           <ReactMarkdown>...</ReactMarkdown>
         </div>
@@ -56,9 +67,14 @@ function MessageContent({ content, role }) {
 
 // Helper function to parse thinking content from response
 function parseThinkingContent(content) {
-  if (!content) return { thinking: '', response: '' };
+  if (!content) return { thinking: '', response: '', isThinkingInProgress: false };
   
-  // Match both <think> and <thinking> tags
+  // Check if there's an unclosed think tag (thinking in progress during streaming)
+  const hasOpenTag = /<think(?:ing)?>/.test(content);
+  const hasCloseTag = /<\/think(?:ing)?>/.test(content);
+  const isThinkingInProgress = hasOpenTag && !hasCloseTag;
+  
+  // Match both <think> and <thinking> tags (only completed tags)
   const thinkRegex = /<think(?:ing)?>(.*?)<\/think(?:ing)?>/gs;
   let thinking = '';
   let response = content;
@@ -69,9 +85,15 @@ function parseThinkingContent(content) {
     response = response.replace(match[0], '');
   }
   
+  // If thinking is in progress, remove the incomplete tag from response
+  if (isThinkingInProgress) {
+    response = response.replace(/<think(?:ing)?>.*$/s, '');
+  }
+  
   return {
     thinking: thinking.trim(),
-    response: response.trim()
+    response: response.trim(),
+    isThinkingInProgress
   };
 }
 
