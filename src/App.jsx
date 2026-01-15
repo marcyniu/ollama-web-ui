@@ -1,7 +1,101 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp } from 'lucide-react';
 import packageJson from '../package.json';
+
+// Component to render message content with thinking section
+function MessageContent({ content, role }) {
+  const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(true);
+  
+  if (role === 'user') {
+    return <p className="whitespace-pre-wrap">{content}</p>;
+  }
+  
+  const { thinking, response, isThinkingInProgress } = parseThinkingContent(content);
+  
+  return (
+    <>
+      {(thinking || isThinkingInProgress) && (
+        <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              THINKING
+            </div>
+            {thinking && (
+              <button
+                onClick={() => setIsThinkingCollapsed(!isThinkingCollapsed)}
+                className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                aria-label={isThinkingCollapsed ? "Expand thinking" : "Collapse thinking"}
+              >
+                {isThinkingCollapsed ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                ) : (
+                  <ChevronUp className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                )}
+              </button>
+            )}
+          </div>
+          {isThinkingInProgress && !thinking && (
+            <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></span>
+              </span>
+            </div>
+          )}
+          {thinking && !isThinkingCollapsed && (
+            <div className="text-sm italic text-gray-600 dark:text-gray-400">
+              <ReactMarkdown>{thinking}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
+      {response && (
+        <div className="prose prose-sm max-w-none">
+          <ReactMarkdown>{response}</ReactMarkdown>
+        </div>
+      )}
+      {!response && !thinking && !isThinkingInProgress && (
+        <div className="prose prose-sm max-w-none">
+          <ReactMarkdown>...</ReactMarkdown>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Helper function to parse thinking content from response
+function parseThinkingContent(content) {
+  if (!content) return { thinking: '', response: '', isThinkingInProgress: false };
+  
+  // Check if there's an unclosed think tag (thinking in progress during streaming)
+  const hasOpenTag = /<think(?:ing)?>/.test(content);
+  const hasCloseTag = /<\/think(?:ing)?>/.test(content);
+  const isThinkingInProgress = hasOpenTag && !hasCloseTag;
+  
+  // Match both <think> and <thinking> tags (only completed tags)
+  const thinkRegex = /<think(?:ing)?>(.*?)<\/think(?:ing)?>/gs;
+  let thinking = '';
+  let response = content;
+  
+  const matches = content.matchAll(thinkRegex);
+  for (const match of matches) {
+    thinking += match[1];
+    response = response.replace(match[0], '');
+  }
+  
+  // If thinking is in progress, remove the incomplete tag from response
+  if (isThinkingInProgress) {
+    response = response.replace(/<think(?:ing)?>.*$/s, '');
+  }
+  
+  return {
+    thinking: thinking.trim(),
+    response: response.trim(),
+    isThinkingInProgress
+  };
+}
 
 function App() {
   // Endpoint management
@@ -897,13 +991,7 @@ function App() {
                           />
                         </div>
                       )}
-                      <div className="prose prose-sm max-w-none">
-                        {message.role === 'assistant' ? (
-                          <ReactMarkdown>{message.content || '...'}</ReactMarkdown>
-                        ) : (
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-                        )}
-                      </div>
+                      <MessageContent content={message.content} role={message.role} />
                     </div>
                   </div>
                 ))}

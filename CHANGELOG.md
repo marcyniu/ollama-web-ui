@@ -8,4 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial automation scaffolding for GitHub Custom Agents.
 
+## [0.2.0] - 2026-01-14
+
+- feat(ui): render and distinguish <think> tags from model responses —
+	collapsible THINKING section, blinking indicator during streaming, and
+	streamed response shown after </think> tag.
+
 <!-- AGENT:INSERT -->
