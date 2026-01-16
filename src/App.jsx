@@ -4,14 +4,15 @@ import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pen
 import packageJson from '../package.json';
 
 // Component to render message content with thinking section
-function MessageContent({ content, role }) {
+function MessageContent({ content, thinking, role }) {
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(true);
   
   if (role === 'user') {
     return <p className="whitespace-pre-wrap">{content}</p>;
   }
   
-  const { thinking, response, isThinkingInProgress } = parseThinkingContent(content);
+  // Check if thinking is in progress (has thinking but no content yet)
+  const isThinkingInProgress = thinking && !content;
   
   return (
     <>
@@ -35,7 +36,7 @@ function MessageContent({ content, role }) {
               </button>
             )}
           </div>
-          {isThinkingInProgress && !thinking && (
+          {isThinkingInProgress && !content && (
             <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
               <span className="inline-flex gap-1">
                 <span className="w-1.5 h-1.5 bg-gray-500 dark:bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></span>
@@ -51,50 +52,18 @@ function MessageContent({ content, role }) {
           )}
         </div>
       )}
-      {response && (
+      {content && (
         <div className="prose prose-sm max-w-none">
-          <ReactMarkdown>{response}</ReactMarkdown>
+          <ReactMarkdown>{content}</ReactMarkdown>
         </div>
       )}
-      {!response && !thinking && !isThinkingInProgress && (
+      {!content && !thinking && (
         <div className="prose prose-sm max-w-none">
           <ReactMarkdown>...</ReactMarkdown>
         </div>
       )}
     </>
   );
-}
-
-// Helper function to parse thinking content from response
-function parseThinkingContent(content) {
-  if (!content) return { thinking: '', response: '', isThinkingInProgress: false };
-  
-  // Check if there's an unclosed think tag (thinking in progress during streaming)
-  const hasOpenTag = /<think(?:ing)?>/.test(content);
-  const hasCloseTag = /<\/think(?:ing)?>/.test(content);
-  const isThinkingInProgress = hasOpenTag && !hasCloseTag;
-  
-  // Match both <think> and <thinking> tags (only completed tags)
-  const thinkRegex = /<think(?:ing)?>(.*?)<\/think(?:ing)?>/gs;
-  let thinking = '';
-  let response = content;
-  
-  const matches = content.matchAll(thinkRegex);
-  for (const match of matches) {
-    thinking += match[1];
-    response = response.replace(match[0], '');
-  }
-  
-  // If thinking is in progress, remove the incomplete tag from response
-  if (isThinkingInProgress) {
-    response = response.replace(/<think(?:ing)?>.*$/s, '');
-  }
-  
-  return {
-    thinking: thinking.trim(),
-    response: response.trim(),
-    isThinkingInProgress
-  };
 }
 
 function App() {
@@ -466,7 +435,7 @@ function App() {
     setIsStreaming(true);
 
     // Create assistant message placeholder
-    const assistantMessage = { role: 'assistant', content: '' };
+    const assistantMessage = { role: 'assistant', content: '', thinking: '' };
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
@@ -517,15 +486,27 @@ function App() {
           for (const line of lines) {
             try {
               const json = JSON.parse(line);
-              // /api/chat uses 'message.content' instead of 'response'
-              if (json.message?.content) {
+              // Handle both thinking and content from the API response
+              if (json.message) {
                 setMessages(prev => {
                   const updated = [...prev];
                   const lastIndex = updated.length - 1;
                   if (updated[lastIndex].role === 'assistant') {
+                    const updates = {};
+                    
+                    // Accumulate thinking if present
+                    if (json.message.thinking) {
+                      updates.thinking = (updated[lastIndex].thinking || '') + json.message.thinking;
+                    }
+                    
+                    // Accumulate content if present
+                    if (json.message.content) {
+                      updates.content = (updated[lastIndex].content || '') + json.message.content;
+                    }
+                    
                     updated[lastIndex] = {
                       ...updated[lastIndex],
-                      content: updated[lastIndex].content + json.message.content
+                      ...updates
                     };
                   }
                   return updated;
@@ -539,15 +520,25 @@ function App() {
       } else {
         // Handle non-streaming response
         const data = await response.json();
-        // /api/chat returns message object with content
-        if (data.message?.content) {
+        // /api/chat returns message object with content and optionally thinking
+        if (data.message) {
           setMessages(prev => {
             const updated = [...prev];
             const lastIndex = updated.length - 1;
             if (updated[lastIndex].role === 'assistant') {
+              const updates = {};
+              
+              if (data.message.thinking) {
+                updates.thinking = data.message.thinking;
+              }
+              
+              if (data.message.content) {
+                updates.content = data.message.content;
+              }
+              
               updated[lastIndex] = {
                 ...updated[lastIndex],
-                content: data.message.content
+                ...updates
               };
             }
             return updated;
@@ -991,7 +982,7 @@ function App() {
                           />
                         </div>
                       )}
-                      <MessageContent content={message.content} role={message.role} />
+                      <MessageContent content={message.content} thinking={message.thinking} role={message.role} />
                     </div>
                   </div>
                 ))}
