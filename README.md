@@ -177,6 +177,7 @@ Two utility scripts mirror the CI behavior:
 $ cd ~/code/node/ollama-web-ui
 $ act -W .github/workflows/test-lint.yml -j quality
 ```
+
 ## License
 
 MIT
