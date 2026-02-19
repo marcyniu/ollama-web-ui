@@ -38,7 +38,7 @@ export function ModelParamsPanel({
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors rounded-t-lg"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
         aria-label={isExpanded ? "Collapse parameters" : "Expand parameters"}
       >
         <span className="font-semibold text-gray-800 dark:text-white">
