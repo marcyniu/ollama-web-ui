@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp } from 'lucide-react';
 import packageJson from '../package.json';
+import { useModelParams } from './hooks/useModelParams';
+import { ModelParamsPanel } from './components/ModelParamsPanel';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -134,6 +136,17 @@ function App() {
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Model parameters hook
+  const {
+    params: modelParams,
+    updateParam,
+    resetToDefaults,
+    presets,
+    applyPreset,
+    savePreset,
+    deletePreset,
+  } = useModelParams(selectedModel);
 
   // Helper function to detect vision-capable models
   const isVisionModel = (modelName) => {
@@ -442,7 +455,7 @@ function App() {
       abortControllerRef.current = new AbortController();
       
       // Build the messages array for the API - include conversation history
-      const apiMessages = messages
+      let apiMessages = messages
         .concat([userMessage])
         .map(msg => {
           const apiMsg = {
@@ -458,6 +471,14 @@ function App() {
           return apiMsg;
         });
       
+      // Add system prompt at the beginning if provided
+      if (modelParams.system_prompt && modelParams.system_prompt.trim()) {
+        apiMessages = [
+          { role: 'system', content: modelParams.system_prompt },
+          ...apiMessages
+        ];
+      }
+      
       const response = await fetch(`${apiEndpoint}/api/chat`, {
         method: 'POST',
         headers: {
@@ -467,6 +488,11 @@ function App() {
           model: selectedModel,
           messages: apiMessages,
           stream: streamingEnabled,
+          options: {
+            temperature: modelParams.temperature,
+            top_p: modelParams.top_p,
+            num_predict: modelParams.max_tokens,
+          },
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -993,6 +1019,16 @@ function App() {
             {/* Input Area */}
             <div className="bg-white dark:bg-gray-800 border-t shadow-lg p-4">
               <div className="max-w-4xl mx-auto">
+                {/* Model Parameters Panel */}
+                <ModelParamsPanel
+                  params={modelParams}
+                  updateParam={updateParam}
+                  resetToDefaults={resetToDefaults}
+                  presets={presets}
+                  applyPreset={applyPreset}
+                  savePreset={savePreset}
+                  deletePreset={deletePreset}
+                />
                 <div className="flex gap-2 mb-2">
                   <button
                     onClick={clearChat}
