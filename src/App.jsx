@@ -4,7 +4,7 @@ import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pen
 import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
-import { ModelManager } from './pages/ModelManager';
+import { ModelManager } from './components/ModelManager';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -263,12 +263,13 @@ function App() {
         );
         setModels(sortedModels);
         setIsConnected(true);
-        // Auto-select first model if models are available
-        if (sortedModels.length > 0) {
-          const firstModel = sortedModels[0].name;
-          setSelectedModel(firstModel);
-          setSelectedModelSupportsVision(isVisionModel(firstModel));
-        }
+        // Keep current selection if it still exists; otherwise pick first available
+        setSelectedModel(prev => {
+          const stillExists = sortedModels.some(m => m.name === prev);
+          if (stillExists) return prev;
+          if (sortedModels.length > 0) return sortedModels[0].name;
+          return '';
+        });
       } else {
         setIsConnected(false);
         setModels([]);
@@ -934,6 +935,20 @@ function App() {
                     )}
                   </div>
                   
+                  {/* Model Manager */}
+                  <div>
+                    <label className="block text-sm font-medium dark:text-gray-300 mb-3">
+                      Model Manager
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 font-normal">
+                        — {endpoints.find(e => e.active)?.name || 'Current endpoint'}
+                      </span>
+                    </label>
+                    <ModelManager
+                      apiEndpoint={apiEndpoint}
+                      onModelsChanged={checkConnection}
+                    />
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <span className="text-sm font-medium dark:text-gray-300">Dark Mode</span>

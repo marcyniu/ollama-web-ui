@@ -26,16 +26,16 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
-  // Server-side Node.js configuration
   {
-    files: ['src/server/**/*.js', 'scripts/**/*.{js,mjs}'],
+    files: ['server/**/*.js'],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       globals: globals.node,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-      },
+      sourceType: 'module',
+    },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
 ])
+
