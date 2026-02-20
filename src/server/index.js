@@ -160,7 +160,7 @@ app.post('/api/models/delete', (req, res) => {
     return res.status(403).json({ error: 'Model manager is disabled' });
   }
 
-  const { name, version, force } = req.body;
+  const { name, version } = req.body;
   
   if (!name) {
     return res.status(400).json({ error: 'Model name is required' });

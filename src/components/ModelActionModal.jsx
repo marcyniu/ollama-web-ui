@@ -13,7 +13,7 @@ export function ModelActionModal({
   modelName,
   onComplete 
 }) {
-  const { operation, polling } = useModelOperation(opId, onComplete);
+  const { operation } = useModelOperation(opId, onComplete);
   const logsEndRef = useRef(null);
 
   // Auto-scroll logs to bottom

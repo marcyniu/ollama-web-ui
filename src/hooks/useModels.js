@@ -111,40 +111,38 @@ export function useModels() {
  */
 export function useModelOperation(opId, onComplete) {
   const [operation, setOperation] = useState(null);
-  const [polling, setPolling] = useState(false);
 
   useEffect(() => {
     if (!opId) return;
-
-    setPolling(true);
+    
+    let isActive = true;
     
     const pollInterval = setInterval(async () => {
       try {
         const status = await getOperationStatus(opId);
-        setOperation(status);
+        if (isActive) {
+          setOperation(status);
 
-        if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(pollInterval);
-          setPolling(false);
-          if (onComplete) {
-            onComplete(status);
+          if (status.status === 'completed' || status.status === 'failed') {
+            clearInterval(pollInterval);
+            if (onComplete) {
+              onComplete(status);
+            }
           }
         }
       } catch (error) {
         console.error('Error polling operation status:', error);
         clearInterval(pollInterval);
-        setPolling(false);
       }
     }, 1000); // Poll every second
 
     return () => {
+      isActive = false;
       clearInterval(pollInterval);
-      setPolling(false);
     };
   }, [opId, onComplete]);
 
   return {
-    operation,
-    polling
+    operation
   };
 }

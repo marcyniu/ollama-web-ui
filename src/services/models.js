@@ -1,4 +1,4 @@
-const MODEL_MANAGER_API = process.env.MODEL_MANAGER_API || 'http://localhost:3001';
+const MODEL_MANAGER_API = import.meta.env.VITE_MODEL_MANAGER_API || 'http://localhost:3001';
 
 /**
  * Fetch list of installed models
