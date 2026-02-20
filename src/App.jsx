@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp, Package } from 'lucide-react';
 import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
+import { ModelManager } from './pages/ModelManager';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -103,7 +104,7 @@ function App() {
     const saved = localStorage.getItem('menuCollapsed');
     return saved !== null ? saved === 'true' : false;
   });
-  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history'
+  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history' | 'models'
   const [streamingEnabled, setStreamingEnabled] = useState(() => {
     const saved = localStorage.getItem('streamingEnabled');
     return saved !== null ? saved === 'true' : true; // Default to true
@@ -952,6 +953,23 @@ function App() {
                     </label>
                   </div>
                   
+                  {/* Model Manager Button */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => {
+                        setActiveView('models');
+                        setShowSettings(false);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-md hover:shadow-lg"
+                    >
+                      <Package className="w-5 h-5" />
+                      <span className="font-medium">Model Manager</span>
+                    </button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                      Install, manage, and delete AI models
+                    </p>
+                  </div>
+                  
                   <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={() => setShowSettings(false)}
@@ -969,7 +987,7 @@ function App() {
           </div>
         )}
 
-        {/* Content Area - Chat or History */}
+        {/* Content Area - Chat, History, or Model Manager */}
         {activeView === 'chat' ? (
           <>
             {/* Chat Messages */}
@@ -1133,7 +1151,7 @@ function App() {
               </div>
             </div>
           </>
-        ) : (
+        ) : activeView === 'history' ? (
           /* Chat History View */
           <div className="flex-1 overflow-y-auto p-4">
             <div className="max-w-4xl mx-auto">
@@ -1195,6 +1213,9 @@ function App() {
               )}
             </div>
           </div>
+        ) : (
+          /* Model Manager View */
+          <ModelManager onClose={() => setActiveView('chat')} />
         )}
       </div>
     </div>
