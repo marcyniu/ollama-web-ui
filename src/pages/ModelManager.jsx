@@ -55,6 +55,7 @@ export function ModelManager({ onClose }) {
   };
 
   const handleDelete = async (model) => {
+    // TODO: Replace with custom confirmation modal for better UX
     if (!confirm(`Are you sure you want to delete ${model.name}?`)) {
       return;
     }

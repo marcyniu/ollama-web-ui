@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
+import rateLimit from 'express-rate-limit';
 
 const app = express();
 const PORT = process.env.MODEL_MANAGER_PORT || 3001;
@@ -10,6 +11,15 @@ const ENABLE_MODEL_MANAGER = process.env.ENABLE_MODEL_MANAGER === 'true';
 
 // In-memory operation store
 const operations = new Map();
+
+// Rate limiter for model operations
+const modelOperationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 operations per minute
+  message: 'Too many model operations from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware
 app.use(cors());
@@ -81,7 +91,7 @@ app.get('/api/models/remote', async (req, res) => {
 });
 
 // Install a model
-app.post('/api/models/install', (req, res) => {
+app.post('/api/models/install', modelOperationLimiter, (req, res) => {
   if (!ENABLE_MODEL_MANAGER) {
     return res.status(403).json({ error: 'Model manager is disabled' });
   }
@@ -155,7 +165,7 @@ app.post('/api/models/install', (req, res) => {
 });
 
 // Delete a model
-app.post('/api/models/delete', (req, res) => {
+app.post('/api/models/delete', modelOperationLimiter, (req, res) => {
   if (!ENABLE_MODEL_MANAGER) {
     return res.status(403).json({ error: 'Model manager is disabled' });
   }

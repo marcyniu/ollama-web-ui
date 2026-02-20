@@ -134,7 +134,7 @@ export function useModelOperation(opId, onComplete) {
         console.error('Error polling operation status:', error);
         clearInterval(pollInterval);
       }
-    }, 1000); // Poll every second
+    }, 2000); // Poll every 2 seconds
 
     return () => {
       isActive = false;
