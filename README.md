@@ -5,7 +5,6 @@ A responsive React/Tailwind SPA front-end for Ollama server with real-time strea
 ## Features
 
 - **Real-time Streaming**: Token-by-token chat responses using Ollama's `/api/generate` endpoint with `stream: true`
-- **Model Lifecycle Management**: Install, delete, and manage Ollama models directly from the web UI
 - **Model Selection**: Dynamic model selection using the `/api/tags` endpoint
 - **Multi-Endpoint Support**: Configure and switch between multiple Ollama server endpoints
 - **Chat History**: Persistent conversation history with search and reload capabilities
@@ -25,8 +24,6 @@ A responsive React/Tailwind SPA front-end for Ollama server with real-time strea
 
 ## Development
 
-### Frontend Development
-
 1. Install dependencies:
 ```bash
 npm install
@@ -40,29 +37,6 @@ npm run dev
 3. Open your browser to `http://localhost:5173`
 
 4. Configure the Ollama API endpoint in the Settings panel (default: `http://localhost:11434`)
-
-### Backend Development (Model Manager)
-
-The Model Manager backend provides API endpoints for installing and deleting models. It's optional and must be explicitly enabled.
-
-1. Start the backend server (in a separate terminal):
-```bash
-npm run dev:server
-```
-
-This starts an Express server on `http://localhost:3001` with the following environment variables:
-- `ENABLE_MODEL_MANAGER=true` - Enables the Model Manager API
-- `MODEL_MANAGER_PORT=3001` - Port for the backend server (default: 3001)
-- `OLLAMA_HOST=http://localhost:11434` - Ollama server endpoint
-
-2. The frontend will automatically connect to the backend at `http://localhost:3001`
-
-3. To run both frontend and backend together:
-```bash
-npm run dev:all
-```
-
-**Security Note**: The Model Manager backend should only be exposed locally or within a trusted network. It executes `ollama` CLI commands and should not be exposed to the public internet.
 
 ## Building for Production
 
@@ -78,9 +52,7 @@ npm run preview
 
 ## Docker Deployment
 
-### Standard Deployment (Static Frontend Only)
-
-Create network (if it does not exist)
+Create network (if it does not exist):
 ```bash
 docker network create --driver bridge \
         --ip-range 172.18.0.0/16 \
@@ -107,34 +79,6 @@ docker run --rm -it \
   --name ollama-web-ui-dev \
   ollama-web-ui
 ```
-
-### Deployment with Model Manager Backend
-
-To enable the Model Manager backend in production, use the alternative Dockerfile:
-
-Build the Docker image with backend support:
-```bash
-docker build -f Dockerfile.with-backend -t ollama-web-ui:with-backend .
-```
-
-Run with Model Manager enabled:
-```bash
-docker run -d \
-  --net dev-net \
-  --restart=always \
-  --name ollama-web \
-  -e ENABLE_MODEL_MANAGER=true \
-  -e OLLAMA_HOST=http://ollama:11434 \
-  -p 80:80 \
-  -p 3001:3001 \
-  ollama-web-ui:with-backend
-```
-
-**Important**: When running with Model Manager enabled:
-- The container needs access to the `ollama` CLI
-- You may need to mount the Ollama socket or ensure the container can execute `ollama` commands
-- Consider running on a host network or ensuring proper network configuration
-- Only expose port 3001 within trusted networks
 
 ## Set up environment for permanent run with Nginx reverse proxy:
 
@@ -202,18 +146,6 @@ docker run -d \
 6. Upload images for vision-capable models
 7. Adjust model parameters (temperature, top_p, etc.) in the settings
 
-### Model Manager
-
-Access the Model Manager from the Settings panel to:
-
-1. **View Installed Models**: See all locally installed Ollama models with metadata (size, version, family, parameters)
-2. **Browse Available Models**: View a curated catalog of popular models ready to install
-3. **Install Models**: One-click installation with real-time progress tracking and logs
-4. **Delete Models**: Remove unwanted models with confirmation
-5. **Monitor Operations**: Watch installation/deletion progress with percentage and streaming logs
-
-**Note**: The Model Manager requires the backend server to be running with `ENABLE_MODEL_MANAGER=true`.
-
 ### Chat History
 
 1. Click **History** to view all past conversations
@@ -227,19 +159,11 @@ The Ollama API endpoint is stored in browser's localStorage and persists across 
 
 ## Tech Stack
 
-### Frontend
 - React 19
 - Vite 7
 - Tailwind CSS v4
 - react-markdown
 - lucide-react (icons)
-
-### Backend (Optional - Model Manager)
-- Express 5
-- Node.js 25+
-- CORS middleware
-
-### Deployment
 - Nginx (for Docker deployment)
 - Multi-stage Docker builds
 

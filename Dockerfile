@@ -17,25 +17,17 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Stage 2: Serve with Nginx (optionally with backend)
+# Stage 2: Serve with Nginx
 FROM nginx:alpine
-
-# Install Node.js for the optional Model Manager backend
-RUN apk add --no-cache nodejs
 
 # Copy built frontend files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy backend server
-COPY server/index.js /app/server/index.js
-
-# Copy nginx and entrypoint
+# Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
 
-# Expose frontend port (8080) and optional backend port (3001)
-EXPOSE 8080 3001
+# Expose frontend port
+EXPOSE 8080
 
-# Start via entrypoint (handles optional backend)
-CMD ["/docker-entrypoint.sh"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

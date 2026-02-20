@@ -5,8 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "ENABLE_MODEL_MANAGER=true node src/server/index.js",
-    "dev:all": "npm run dev:server & npm run dev",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -14,9 +12,6 @@
     "agents:changelog": "node scripts/agents/update-changelog.mjs"
   },
   "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -37,11 +32,5 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
     "vite": "^7.2.2"
-  },
-  "overrides": {
-    "ajv": "^8.18.0",
-    "minimatch": "^10.2.1",
-    "qs": "^6.14.1",
-    "tough-cookie": "^4.1.3"
   }
 }

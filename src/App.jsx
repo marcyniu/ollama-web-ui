@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp } from 'lucide-react';
 import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
-import { ModelManager as ModelManagerComponent } from './components/ModelManager';
-import { ModelManager } from './pages/ModelManager';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -101,7 +99,6 @@ function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showModelManager, setShowModelManager] = useState(false);
   const [menuCollapsed, setMenuCollapsed] = useState(() => {
     const saved = localStorage.getItem('menuCollapsed');
     return saved !== null ? saved === 'true' : false;
@@ -936,20 +933,6 @@ function App() {
                       </div>
                     )}
                   </div>
-                  
-                  {/* Model Manager */}
-                  <div>
-                    <label className="block text-sm font-medium dark:text-gray-300 mb-3">
-                      Model Manager
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 font-normal">
-                        — {endpoints.find(e => e.active)?.name || 'Current endpoint'}
-                      </span>
-                    </label>
-                    <ModelManagerComponent
-                      apiEndpoint={apiEndpoint}
-                      onModelsChanged={checkConnection}
-                    />
-                  </div>
 
                   <div className="flex items-center gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -970,23 +953,6 @@ function App() {
                     </label>
                   </div>
                   
-                  {/* Model Manager Button */}
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => {
-                        setShowModelManager(true);
-                        setShowSettings(false);
-                      }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-md hover:shadow-lg"
-                    >
-                      <Package className="w-5 h-5" />
-                      <span className="font-medium">Model Manager</span>
-                    </button>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                      Install, manage, and delete AI models
-                    </p>
-                  </div>
-                  
                   <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={() => setShowSettings(false)}
@@ -1004,7 +970,7 @@ function App() {
           </div>
         )}
 
-        {/* Content Area - Chat, History, or Model Manager */}
+        {/* Content Area - Chat or History */}
         {activeView === 'chat' ? (
           <>
             {/* Chat Messages */}
@@ -1232,15 +1198,6 @@ function App() {
           </div>
         )}
       </div>
-
-      {/* Model Manager Modal */}
-      {showModelManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full h-full max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
-            <ModelManager onClose={() => setShowModelManager(false)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
