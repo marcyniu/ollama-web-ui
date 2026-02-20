@@ -100,7 +100,7 @@ export function ModelManager({ onClose }) {
 
   if (!isAvailable) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
+      <div className="flex items-center justify-center flex-1 bg-gray-50 dark:bg-gray-900 p-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full text-center">
           <Server className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
@@ -122,7 +122,7 @@ export function ModelManager({ onClose }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="flex flex-col flex-1 bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">

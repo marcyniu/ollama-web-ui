@@ -4,7 +4,8 @@ import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pen
 import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
-import { ModelManager } from './components/ModelManager';
+import { ModelManager as ModelManagerComponent } from './components/ModelManager';
+import { ModelManager } from './pages/ModelManager';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -100,11 +101,12 @@ function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showModelManager, setShowModelManager] = useState(false);
   const [menuCollapsed, setMenuCollapsed] = useState(() => {
     const saved = localStorage.getItem('menuCollapsed');
     return saved !== null ? saved === 'true' : false;
   });
-  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history' | 'models'
+  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history'
   const [streamingEnabled, setStreamingEnabled] = useState(() => {
     const saved = localStorage.getItem('streamingEnabled');
     return saved !== null ? saved === 'true' : true; // Default to true
@@ -943,7 +945,7 @@ function App() {
                         — {endpoints.find(e => e.active)?.name || 'Current endpoint'}
                       </span>
                     </label>
-                    <ModelManager
+                    <ModelManagerComponent
                       apiEndpoint={apiEndpoint}
                       onModelsChanged={checkConnection}
                     />
@@ -972,7 +974,7 @@ function App() {
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={() => {
-                        setActiveView('models');
+                        setShowModelManager(true);
                         setShowSettings(false);
                       }}
                       className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-md hover:shadow-lg"
@@ -1166,7 +1168,7 @@ function App() {
               </div>
             </div>
           </>
-        ) : activeView === 'history' ? (
+        ) : (
           /* Chat History View */
           <div className="flex-1 overflow-y-auto p-4">
             <div className="max-w-4xl mx-auto">
@@ -1228,11 +1230,17 @@ function App() {
               )}
             </div>
           </div>
-        ) : (
-          /* Model Manager View */
-          <ModelManager onClose={() => setActiveView('chat')} />
         )}
       </div>
+
+      {/* Model Manager Modal */}
+      {showModelManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full h-full max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+            <ModelManager onClose={() => setShowModelManager(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
