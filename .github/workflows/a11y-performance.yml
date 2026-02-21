@@ -50,14 +50,13 @@ jobs:
           temporaryPublicStorage: true
           urls: 'http://127.0.0.1:4173'
 
-      - name: Accessibility audit (pa11y-ci)
+      - name: Accessibility audit (pa11y)
         id: pa11y
         continue-on-error: true
         env:
           PORT: 4173
         run: |
-          set -o pipefail
-          npx pa11y-ci --config .github/pa11yci.json --json | tee pa11y-report.json
+          node scripts/a11y/run-pa11y.mjs .github/pa11yci.json pa11y-report.json
 
       - name: Stop preview server
         if: always()
@@ -98,7 +97,7 @@ jobs:
               }
             }
 
-            let pa11ySummary = 'pa11y-ci report not available.';
+            let pa11ySummary = 'pa11y report not available.';
             const pa11yPath = path.join(process.cwd(), 'pa11y-report.json');
             if (fs.existsSync(pa11yPath)) {
               try {
@@ -135,5 +134,5 @@ jobs:
       - name: Enforce accessibility baseline
         if: steps.pa11y.outcome == 'failure'
         run: |
-          echo 'pa11y-ci detected accessibility errors. Please review the report artifacts.'
+          echo 'pa11y detected accessibility errors. Please review the report artifacts.'
           exit 1
