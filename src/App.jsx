@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquarePlus, History, Settings, ChevronLeft, ChevronRight, X, Pencil, Trash2, Plus, Image, ChevronDown, ChevronUp, Boxes } from 'lucide-react';
 import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
+import ModelManager from './pages/ModelManager';
+import { useModelStore } from './store/modelStore';
 
 // Component to render message content with thinking section
 function MessageContent({ content, thinking, role }) {
@@ -76,7 +78,7 @@ function App() {
       return JSON.parse(saved);
     }
     return [
-      { id: '1', name: 'Local Ollama', url: 'http://localhost:11434', active: true }
+      { id: '1', name: 'Local Ollama', url: 'http://127.0.0.1:11434', active: true }
     ];
   });
   
@@ -85,9 +87,9 @@ function App() {
     if (saved) {
       const endpoints = JSON.parse(saved);
       const activeEndpoint = endpoints.find(e => e.active);
-      return activeEndpoint ? activeEndpoint.url : 'http://localhost:11434';
+      return activeEndpoint ? activeEndpoint.url : 'http://127.0.0.1:11434';
     }
-    return 'http://localhost:11434';
+    return 'http://127.0.0.1:11434';
   });
   const [isConnected, setIsConnected] = useState(false);
   const [models, setModels] = useState([]);
@@ -103,7 +105,7 @@ function App() {
     const saved = localStorage.getItem('menuCollapsed');
     return saved !== null ? saved === 'true' : false;
   });
-  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history'
+  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'history' | 'models'
   const [streamingEnabled, setStreamingEnabled] = useState(() => {
     const saved = localStorage.getItem('streamingEnabled');
     return saved !== null ? saved === 'true' : true; // Default to true
@@ -132,6 +134,7 @@ function App() {
   const [editingEndpoint, setEditingEndpoint] = useState(null);
   const [endpointName, setEndpointName] = useState('');
   const [endpointUrl, setEndpointUrl] = useState('');
+  const downloadingCount = Object.keys(useModelStore((snapshot) => snapshot.downloads)).length;
   
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -280,6 +283,21 @@ function App() {
     }
   };
 
+  const handleModelsChanged = useCallback((nextModels) => {
+    const sortedModels = [...nextModels].sort((a, b) => a.name.localeCompare(b.name));
+    setModels(sortedModels);
+    setIsConnected(true);
+
+    if (sortedModels.length === 0) {
+      setSelectedModel('');
+      return;
+    }
+
+    setSelectedModel((prevSelected) => (
+      sortedModels.some((model) => model.name === prevSelected) ? prevSelected : sortedModels[0].name
+    ));
+  }, []);
+
   // Update vision capability when model changes
   useEffect(() => {
     setSelectedModelSupportsVision(isVisionModel(selectedModel));
@@ -387,6 +405,20 @@ function App() {
     setEditingEndpoint(null);
     setEndpointName('');
     setEndpointUrl('');
+  };
+
+  const applyApiEndpoint = (nextUrl) => {
+    const normalized = nextUrl.trim();
+    if (!normalized) return;
+
+    setApiEndpoint(normalized);
+    setEndpoints(prev => {
+      const updated = prev.map(endpoint => (
+        endpoint.active ? { ...endpoint, url: normalized } : endpoint
+      ));
+      localStorage.setItem('ollamaEndpoints', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const toggleStreaming = () => {
@@ -655,6 +687,29 @@ function App() {
             )}
           </button>
 
+          <button
+            onClick={() => setActiveView('models')}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
+              activeView === 'models' ? 'bg-blue-50 dark:bg-gray-700' : ''
+            }`}
+            title={menuCollapsed ? 'Model Manager' : ''}
+          >
+            <Boxes className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            {!menuCollapsed && (
+              <span className="text-gray-700 dark:text-gray-200 font-medium">Model Manager</span>
+            )}
+            {downloadingCount > 0 && (
+              <span className="px-2 py-0.5 text-xs rounded-full bg-blue-600 text-white ml-auto">
+                {downloadingCount}
+              </span>
+            )}
+            {menuCollapsed && (
+              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                Model Manager
+              </div>
+            )}
+          </button>
+
           {!menuCollapsed && (
             <>
               <div className="pt-4 pb-2">
@@ -702,18 +757,20 @@ function App() {
           )}
 
           {menuCollapsed && (
-            <button
-              onClick={() => setActiveView('history')}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
-                activeView === 'history' ? 'bg-blue-50 dark:bg-gray-700' : ''
-              }`}
-              title="Chat History"
-            >
-              <History className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                Chat History
-              </div>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveView('history')}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
+                  activeView === 'history' ? 'bg-blue-50 dark:bg-gray-700' : ''
+                }`}
+                title="Chat History"
+              >
+                <History className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                  Chat History
+                </div>
+              </button>
+            </>
           )}
         </nav>
 
@@ -756,26 +813,28 @@ function App() {
             </div>
             
             {/* Model Selector */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="model-select" className="text-sm opacity-80">Model:</label>
-              <select
-                id="model-select"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="px-3 py-1.5 bg-blue-700 dark:bg-blue-900 text-white rounded-lg border border-blue-500 dark:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                disabled={models.length === 0}
-              >
-                {models.length === 0 ? (
-                  <option>No models</option>
-                ) : (
-                  models.map((model) => (
-                    <option key={model.name} value={model.name}>
-                      {model.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
+            {activeView === 'chat' && (
+              <div className="flex items-center gap-2">
+                <label htmlFor="model-select" className="text-sm opacity-80">Model:</label>
+                <select
+                  id="model-select"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="px-3 py-1.5 bg-blue-700 dark:bg-blue-900 text-white rounded-lg border border-blue-500 dark:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  disabled={models.length === 0}
+                >
+                  {models.length === 0 ? (
+                    <option>No models</option>
+                  ) : (
+                    models.map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
             
             {/* Connection Status */}
             <div className="flex items-center gap-2">
@@ -903,7 +962,7 @@ function App() {
                               value={endpointUrl}
                               onChange={(e) => setEndpointUrl(e.target.value)}
                               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="http://localhost:11434"
+                              placeholder="http://127.0.0.1:11434"
                             />
                           </div>
                           <div className="flex gap-2">
@@ -969,7 +1028,7 @@ function App() {
           </div>
         )}
 
-        {/* Content Area - Chat or History */}
+        {/* Content Area - Chat, Models, or History */}
         {activeView === 'chat' ? (
           <>
             {/* Chat Messages */}
@@ -1133,6 +1192,12 @@ function App() {
               </div>
             </div>
           </>
+        ) : activeView === 'models' ? (
+          <ModelManager
+            apiEndpoint={apiEndpoint}
+            onApiEndpointChange={applyApiEndpoint}
+            onModelsChanged={handleModelsChanged}
+          />
         ) : (
           /* Chat History View */
           <div className="flex-1 overflow-y-auto p-4">
