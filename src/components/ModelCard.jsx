@@ -10,6 +10,37 @@ function formatBytes(bytes) {
   return `${size.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
 }
 
+function describeQuantization(level) {
+  const raw = String(level || '').trim();
+  if (!raw || raw === 'N/A') return 'Not available';
+
+  const normalized = raw.toUpperCase();
+  const known = {
+    Q2_K: '2-bit K quant (very small, lower quality)',
+    Q3_K_M: '3-bit K-M quant (compact, balanced)',
+    Q4_0: '4-bit legacy quant (small, lower quality)',
+    Q4_1: '4-bit legacy quant (slightly better than Q4_0)',
+    Q4_K_M: '4-bit K-M quant (balanced speed and quality)',
+    Q4_K_S: '4-bit K-S quant (faster, slightly lower quality)',
+    Q5_0: '5-bit legacy quant (better quality, larger)',
+    Q5_1: '5-bit legacy quant (improved quality)',
+    Q5_K_M: '5-bit K-M quant (high quality, good speed)',
+    Q6_K: '6-bit K quant (high quality, larger)',
+    Q8_0: '8-bit quant (near full quality, largest quantized)',
+  };
+
+  if (known[normalized]) {
+    return `${normalized} - ${known[normalized]}`;
+  }
+
+  const bits = normalized.match(/^Q(\d+)/);
+  if (bits) {
+    return `${normalized} - ${bits[1]}-bit quantization`;
+  }
+
+  return raw;
+}
+
 export function ModelCard({
   model,
   progress,
@@ -46,7 +77,7 @@ export function ModelCard({
         </div>
         <div className="rounded-md bg-gray-50 dark:bg-gray-700/60 p-2">
           <p className="text-xs text-gray-500 dark:text-gray-400">Quantization</p>
-          <p className="font-medium text-gray-800 dark:text-gray-100">{details.quantization_level || 'N/A'}</p>
+          <p className="font-medium text-gray-800 dark:text-gray-100">{describeQuantization(details.quantization_level)}</p>
         </div>
         <div className="rounded-md bg-gray-50 dark:bg-gray-700/60 p-2 col-span-2">
           <p className="text-xs text-gray-500 dark:text-gray-400">Parameters</p>

@@ -73,10 +73,95 @@ export async function deleteModel(name, baseUrl) {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ model: name }),
   });
 
   return ensureJsonResponse(response);
+}
+
+function normalizeLibraryEntry(entry = {}) {
+  const name = (entry.name || entry.model || '').trim();
+  const description = (entry.description || entry.summary || '').trim();
+  const url = entry.url || (name ? `https://ollama.com/library/${name}` : '');
+  if (!name) return null;
+  return { name, description, url, source: 'remote' };
+}
+
+function collectCandidateArray(value) {
+  if (!value || typeof value !== 'object') return [];
+  if (Array.isArray(value)) return value;
+
+  const queue = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+
+    for (const next of Object.values(current)) {
+      if (Array.isArray(next) && next.length > 0 && next.some((item) => item && typeof item === 'object')) {
+        return next;
+      }
+      if (next && typeof next === 'object') {
+        queue.push(next);
+      }
+    }
+  }
+
+  return [];
+}
+
+function parseLibraryHtml(htmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlText, 'text/html');
+  const script = doc.querySelector('#__NEXT_DATA__');
+  if (!script?.textContent) return [];
+
+  try {
+    const payload = JSON.parse(script.textContent);
+    const candidateArray = collectCandidateArray(payload);
+    const mapped = candidateArray.map(normalizeLibraryEntry).filter(Boolean);
+    return mapped;
+  } catch {
+    return [];
+  }
+}
+
+const FALLBACK_LIBRARY = [
+  { name: 'llama3', description: 'Meta Llama 3 family for general chat and coding.', url: 'https://ollama.com/library/llama3', source: 'fallback' },
+  { name: 'llama3.2', description: 'Updated Llama family with strong instruction following.', url: 'https://ollama.com/library/llama3.2', source: 'fallback' },
+  { name: 'qwen2.5', description: 'Alibaba Qwen 2.5 models with broad multilingual support.', url: 'https://ollama.com/library/qwen2.5', source: 'fallback' },
+  { name: 'mistral', description: 'Fast open-weight model line from Mistral AI.', url: 'https://ollama.com/library/mistral', source: 'fallback' },
+  { name: 'gemma3', description: 'Google Gemma family models for local inference.', url: 'https://ollama.com/library/gemma3', source: 'fallback' },
+  { name: 'phi4', description: 'Microsoft Phi family focused on compact performance.', url: 'https://ollama.com/library/phi4', source: 'fallback' },
+  { name: 'deepseek-r1', description: 'Reasoning-focused model family from DeepSeek.', url: 'https://ollama.com/library/deepseek-r1', source: 'fallback' },
+  { name: 'codellama', description: 'Code-specialized Llama variant for development tasks.', url: 'https://ollama.com/library/codellama', source: 'fallback' },
+];
+
+export async function listLibraryModels() {
+  try {
+    const apiResponse = await fetch('https://ollama.com/api/tags');
+    if (apiResponse.ok) {
+      const apiData = await apiResponse.json();
+      const apiModels = (Array.isArray(apiData?.models) ? apiData.models : [])
+        .map(normalizeLibraryEntry)
+        .filter(Boolean);
+      if (apiModels.length > 0) return apiModels;
+    }
+  } catch {
+    // ignore and try next source
+  }
+
+  try {
+    const htmlResponse = await fetch('https://ollama.com/library');
+    if (htmlResponse.ok) {
+      const htmlText = await htmlResponse.text();
+      const htmlModels = parseLibraryHtml(htmlText);
+      if (htmlModels.length > 0) return htmlModels;
+    }
+  } catch {
+    // ignore and use fallback below
+  }
+
+  return FALLBACK_LIBRARY;
 }
 
 export async function pullModelStream(name, options = {}) {

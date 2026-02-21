@@ -283,7 +283,7 @@ function App() {
     }
   };
 
-  const handleModelsChanged = useCallback((nextModels) => {
+  const handleModelsChanged = useCallback((nextModels = []) => {
     const sortedModels = [...nextModels].sort((a, b) => a.name.localeCompare(b.name));
     setModels(sortedModels);
     setIsConnected(true);
@@ -672,22 +672,6 @@ function App() {
         {/* Menu Items */}
         <nav className={`flex-1 p-2 space-y-1 ${menuCollapsed ? '' : 'overflow-y-auto'}`}>
           <button
-            onClick={handleNewChat}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative"
-            title={menuCollapsed ? 'New Chat' : ''}
-          >
-            <MessageSquarePlus className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            {!menuCollapsed && (
-              <span className="text-gray-700 dark:text-gray-200 font-medium">New Chat</span>
-            )}
-            {menuCollapsed && (
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                New Chat
-              </div>
-            )}
-          </button>
-
-          <button
             onClick={() => setActiveView('models')}
             className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative ${
               activeView === 'models' ? 'bg-blue-50 dark:bg-gray-700' : ''
@@ -706,6 +690,22 @@ function App() {
             {menuCollapsed && (
               <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
                 Model Manager
+              </div>
+            )}
+          </button>
+
+          <button
+            onClick={handleNewChat}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group relative"
+            title={menuCollapsed ? 'New Chat' : ''}
+          >
+            <MessageSquarePlus className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            {!menuCollapsed && (
+              <span className="text-gray-700 dark:text-gray-200 font-medium">New Chat</span>
+            )}
+            {menuCollapsed && (
+              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                New Chat
               </div>
             )}
           </button>
