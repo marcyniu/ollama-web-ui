@@ -1,12 +1,13 @@
 # Ollama Web UI
 
-A responsive React/Tailwind SPA front-end for Ollama server with real-time streaming chat capabilities.
+A responsive React/Tailwind SPA front-end for Ollama with direct browser-to-local-Ollama integration.
 
 ## Features
 
 - **Real-time Streaming**: Token-by-token chat responses using Ollama's `/api/generate` endpoint with `stream: true`
-- **Model Management**: Dynamic model selection using the `/api/tags` endpoint
-- **Configuration**: Persistent input for Ollama API endpoint with connection health check
+- **Model Lifecycle Management**: Pull, delete, inspect, and search models directly in the browser
+- **Real-time Pull Progress**: Streamed pull status with live progress bars from `/api/pull`
+- **Configuration**: Connection settings with persistent Ollama URL (default: `http://127.0.0.1:11434`)
 - **Markdown Display**: Full markdown rendering of AI responses
 - **Responsive Design**: Built with Tailwind CSS for a modern, responsive interface
 - **Docker Deployment**: Multi-stage Docker container exposing port 80
@@ -31,7 +32,12 @@ npm run dev
 
 3. Open your browser to `http://localhost:5173`
 
-4. Configure the Ollama API endpoint in the Settings panel (default: `http://localhost:11434`)
+4. Open **Model Manager** and verify the Ollama URL (default: `http://127.0.0.1:11434`)
+
+5. If the app shows CORS connection issues, start Ollama with:
+```bash
+OLLAMA_ORIGINS="*" ollama serve
+```
 
 ## Building for Production
 
@@ -75,71 +81,23 @@ docker run --rm -it \
   ollama-web-ui
 ```
 
-## Set up environment for permanent run with Nginx reverse proxy:
-
-Run the container permanently in the background:
-```bash
-docker run -d \
-  --net dev-net \
-  --restart=always \
-  --name ollama-web \
-  ollama-web-ui
-```
-
-Example configuration for Nginx reverse proxy (`/etc/nginx/conf.d/ollama-web.conf`):
-```nginx
-# Server Block for {application_subdomain_1}
-server {
-    listen 80;
-    server_name {application_subdomain_1};
-
-    location / {
-        # Use the Docker container name as the upstream target
-        proxy_pass http://ollama-web:80; # Assuming app1 runs on port 80
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        # ... other proxy headers
-    }
-}
-
-# Server Block for {application_subdomain_2}
-server {
-    listen 80;
-    server_name {application_subdomain_2};
-
-    location / {
-        # Use the Docker container name as the upstream target
-        proxy_pass http://test-web:80; # Assuming app2 runs on port 80
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        # ... other proxy headers
-    }
-}
-```
-
-Run the container permanently in the background:
-```bash
-docker run -d \
-  --name nginx-proxy \
-  --net dev-net \
-  --restart=always \
-  -p 80:80 \
-  -p 443:443 \
-  -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
-  nginx
-```
-
 ## Usage
 
-1. Click **Settings** to configure your Ollama server endpoint
-2. Select a model from the dropdown (models are fetched from `/api/tags`)
-3. Start chatting! Messages are streamed in real-time
-4. Use **Clear Chat** to start a new conversation
-5. Press **Stop Generation** to halt an in-progress response
+1. Open **Model Manager** from the left menu
+2. Set/test the Ollama URL in **Connection Settings**
+3. Pull a model by name (for example `llama3`) and monitor real-time progress
+4. Review installed models with size and quantization metadata
+5. Delete or copy model names from model cards
+6. Return to chat, select a model, and stream responses
 
 ## Configuration
 
-The Ollama API endpoint is stored in browser's localStorage and persists across sessions. Update it in the Settings panel to point to your Ollama server.
+The Ollama API endpoint is stored in browser localStorage and persists across sessions.
+
+For direct browser access, Ollama must allow your web origin. If needed:
+```bash
+OLLAMA_ORIGINS="*" ollama serve
+```
 
 ## Tech Stack
 
