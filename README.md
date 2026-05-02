@@ -81,6 +81,15 @@ docker run --rm -it \
   ollama-web-ui
 ```
 
+Run ollama-web on Raspberry Pi:
+```bash
+docker run -d \
+  --net dev-net \
+  --restart=always \
+  --name ollama-web \
+  ollama-web-ui
+```
+
 ## Usage
 
 1. Open **Model Manager** from the left menu
