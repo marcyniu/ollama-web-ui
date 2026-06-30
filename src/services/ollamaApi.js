@@ -9,11 +9,17 @@ function buildUrl(path, baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}${path}`;
 }
 
-async function ensureJsonResponse(response) {
+async function ensureOkResponse(response) {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Request failed with status ${response.status}`);
   }
+
+  return response;
+}
+
+async function ensureJsonResponse(response) {
+  await ensureOkResponse(response);
   return response.json();
 }
 
@@ -36,6 +42,49 @@ function parseNdjsonChunk(buffer, chunkText, onMessage) {
   return remainder;
 }
 
+async function postJson(path, payload, options = {}) {
+  const { baseUrl, signal, method = 'POST' } = options;
+
+  return fetch(buildUrl(path, baseUrl), {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+async function streamNdjsonResponse(response, onMessage) {
+  await ensureOkResponse(response);
+
+  if (!response.body) {
+    throw new Error('Streaming not supported by this browser');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer = parseNdjsonChunk(buffer, decoder.decode(value, { stream: true }), onMessage);
+  }
+
+  buffer = parseNdjsonChunk(buffer, decoder.decode(), onMessage);
+
+  const tail = buffer.trim();
+  if (!tail) return;
+
+  try {
+    onMessage(JSON.parse(tail));
+  } catch {
+    // Ignore trailing parse errors from incomplete transport data.
+  }
+}
+
 export function getStoredOllamaUrl() {
   const saved = localStorage.getItem(OLLAMA_URL_STORAGE_KEY);
   return normalizeBaseUrl(saved || DEFAULT_OLLAMA_URL);
@@ -56,25 +105,13 @@ export async function listModels(baseUrl) {
 }
 
 export async function showModel(name, baseUrl) {
-  const response = await fetch(buildUrl('/api/show', baseUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ model: name }),
-  });
+  const response = await postJson('/api/show', { model: name }, { baseUrl });
 
   return ensureJsonResponse(response);
 }
 
 export async function deleteModel(name, baseUrl) {
-  const response = await fetch(buildUrl('/api/delete', baseUrl), {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ model: name }),
-  });
+  const response = await postJson('/api/delete', { model: name }, { baseUrl, method: 'DELETE' });
 
   return ensureJsonResponse(response);
 }
@@ -167,47 +204,30 @@ export async function listLibraryModels() {
 export async function pullModelStream(name, options = {}) {
   const { baseUrl, signal, onProgress } = options;
 
-  const response = await fetch(buildUrl('/api/pull', baseUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ model: name, stream: true }),
-    signal,
+  const response = await postJson('/api/pull', { model: name, stream: true }, { baseUrl, signal });
+
+  await streamNdjsonResponse(response, (chunk) => {
+    if (onProgress) {
+      onProgress(chunk);
+    }
   });
+}
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Pull failed with status ${response.status}`);
-  }
+export async function chat(request, options = {}) {
+  const { baseUrl, signal, onChunk } = options;
+  const shouldStream = request.stream !== false;
+  const response = await postJson('/api/chat', request, { baseUrl, signal });
 
-  if (!response.body) {
-    throw new Error('Streaming not supported by this browser');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer = parseNdjsonChunk(buffer, decoder.decode(value, { stream: true }), (chunk) => {
-      if (onProgress) {
-        onProgress(chunk);
+  if (shouldStream) {
+    await streamNdjsonResponse(response, (chunk) => {
+      if (onChunk) {
+        onChunk(chunk);
       }
     });
+    return null;
   }
 
-  const tail = buffer.trim();
-  if (tail && onProgress) {
-    try {
-      onProgress(JSON.parse(tail));
-    } catch {
-      // Ignore trailing parse errors.
-    }
-  }
+  return ensureJsonResponse(response);
 }
 
 export { DEFAULT_OLLAMA_URL };

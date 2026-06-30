@@ -5,6 +5,7 @@ import packageJson from '../package.json';
 import { useModelParams } from './hooks/useModelParams';
 import { ModelParamsPanel } from './components/ModelParamsPanel';
 import ModelManager from './pages/ModelManager';
+import { chat, listModels } from './services/ollamaApi';
 import { useModelStore } from './store/modelStore';
 
 // Component to render message content with thinking section
@@ -256,25 +257,13 @@ function App() {
 
   const checkConnection = async () => {
     try {
-      const response = await fetch(`${apiEndpoint}/api/tags`);
-      if (response.ok) {
-        const data = await response.json();
-        // Sort models alphabetically by name
-        const sortedModels = (data.models || []).sort((a, b) => 
-          a.name.localeCompare(b.name)
-        );
-        setModels(sortedModels);
-        setIsConnected(true);
-        // Auto-select first model if models are available
-        if (sortedModels.length > 0) {
-          const firstModel = sortedModels[0].name;
-          setSelectedModel(firstModel);
-          setSelectedModelSupportsVision(isVisionModel(firstModel));
-        }
-      } else {
-        setIsConnected(false);
-        setModels([]);
-        setSelectedModel('');
+      const sortedModels = await listModels(apiEndpoint);
+      setModels(sortedModels);
+      setIsConnected(true);
+      if (sortedModels.length > 0) {
+        const firstModel = sortedModels[0].name;
+        setSelectedModel(firstModel);
+        setSelectedModelSupportsVision(isVisionModel(firstModel));
       }
     } catch {
       setIsConnected(false);
@@ -282,6 +271,31 @@ function App() {
       setSelectedModel('');
     }
   };
+
+  const updateAssistantMessage = useCallback((message = {}, mode = 'append') => {
+    if (!message || typeof message !== 'object') return;
+
+    setMessages(prev => {
+      const updated = [...prev];
+      const lastIndex = updated.length - 1;
+      if (lastIndex < 0 || updated[lastIndex].role !== 'assistant') {
+        return prev;
+      }
+
+      const current = updated[lastIndex];
+      updated[lastIndex] = {
+        ...current,
+        thinking: mode === 'append'
+          ? `${current.thinking || ''}${message.thinking || ''}`
+          : (message.thinking ?? current.thinking),
+        content: mode === 'append'
+          ? `${current.content || ''}${message.content || ''}`
+          : (message.content ?? current.content),
+      };
+
+      return updated;
+    });
+  }, []);
 
   const handleModelsChanged = useCallback((nextModels = []) => {
     const sortedModels = [...nextModels].sort((a, b) => a.name.localeCompare(b.name));
@@ -511,96 +525,34 @@ function App() {
         ];
       }
       
-      const response = await fetch(`${apiEndpoint}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const request = {
+        model: selectedModel,
+        messages: apiMessages,
+        stream: streamingEnabled,
+        options: {
+          temperature: modelParams.temperature,
+          top_p: modelParams.top_p,
+          num_predict: modelParams.max_tokens,
         },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: apiMessages,
-          stream: streamingEnabled,
-          options: {
-            temperature: modelParams.temperature,
-            top_p: modelParams.top_p,
-            num_predict: modelParams.max_tokens,
-          },
-        }),
-        signal: abortControllerRef.current.signal,
-      });
+      };
 
       if (streamingEnabled) {
-        // Handle streaming response
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter(line => line.trim());
-
-          for (const line of lines) {
-            try {
-              const json = JSON.parse(line);
-              // Handle both thinking and content from the API response
-              if (json.message) {
-                setMessages(prev => {
-                  const updated = [...prev];
-                  const lastIndex = updated.length - 1;
-                  if (updated[lastIndex].role === 'assistant') {
-                    const updates = {};
-                    
-                    // Accumulate thinking if present
-                    if (json.message.thinking) {
-                      updates.thinking = (updated[lastIndex].thinking || '') + json.message.thinking;
-                    }
-                    
-                    // Accumulate content if present
-                    if (json.message.content) {
-                      updates.content = (updated[lastIndex].content || '') + json.message.content;
-                    }
-                    
-                    updated[lastIndex] = {
-                      ...updated[lastIndex],
-                      ...updates
-                    };
-                  }
-                  return updated;
-                });
-              }
-            } catch (e) {
-              console.error('Error parsing JSON:', e);
+        await chat(request, {
+          baseUrl: apiEndpoint,
+          signal: abortControllerRef.current.signal,
+          onChunk: (chunk) => {
+            if (chunk?.message) {
+              updateAssistantMessage(chunk.message, 'append');
             }
-          }
-        }
+          },
+        });
       } else {
-        // Handle non-streaming response
-        const data = await response.json();
-        // /api/chat returns message object with content and optionally thinking
+        const data = await chat(request, {
+          baseUrl: apiEndpoint,
+          signal: abortControllerRef.current.signal,
+        });
         if (data.message) {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIndex = updated.length - 1;
-            if (updated[lastIndex].role === 'assistant') {
-              const updates = {};
-              
-              if (data.message.thinking) {
-                updates.thinking = data.message.thinking;
-              }
-              
-              if (data.message.content) {
-                updates.content = data.message.content;
-              }
-              
-              updated[lastIndex] = {
-                ...updated[lastIndex],
-                ...updates
-              };
-            }
-            return updated;
-          });
+          updateAssistantMessage(data.message, 'replace');
         }
       }
       // Clear image after successful send
